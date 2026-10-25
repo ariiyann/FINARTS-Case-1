@@ -1,0 +1,10 @@
+variable,n_months,n_missing,pct_missing,missing_months
+BTC_Return,96,0,0,
+SP500,96,0,0,
+USD_Index,96,0,0,
+US_10Y_Yield,96,0,0,
+VIX,96,0,0,
+Philippine_M3_growth,96,0,0,
+BSP_RRP_Rate,96,0,0,
+USD_PHP,96,0,0,
+WTI,96,0,0,
