@@ -205,17 +205,6 @@
 #   not rescaled to decimals. The regression team should account for this.
 # * Month-end values are the last VALID observation of each month, which for
 #   holiday-affected series can precede the calendar month-end by a few days.
-#
-# 12. HOW TO RUN (RStudio)
-# ---------------------------------------------------------------------------
-# 1. Keep this script in BTC_Case1/ next to data_raw/ (BSP CSVs included).
-# 2. Session > Set Working Directory > To Source File Location.
-# 3. Check M3_MODE in the CONFIG section.
-# 4. Connect to the internet and Source the whole script (Ctrl+Shift+S).
-#    First run installs packages and downloads FRED/Yahoo data. Existing
-#    files in data_raw/ are not re-downloaded; delete one to refresh it.
-# 5. Results are written to output/.
-# =============================================================================
 
 # ---- 0. Packages ------------------------------------------------------------
 pkgs <- c("tidyverse", "lubridate", "janitor", "quantmod", "zoo")
