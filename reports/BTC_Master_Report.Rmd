@@ -1,0 +1,1375 @@
+---
+title: "Case 1: Bitcoin (BTC)"
+subtitle: "Review of Related Literature, Data Preparation, EDA, Regression, and Diagnostics"
+author: "FINARTS C02 Case 1 Group 4 (Compiled by Arianne Yari A. Artus)"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    code_folding: show
+    self_contained: true
+knit: |
+  (function(input, ...) {
+    project_root <- dirname(dirname(normalizePath(input, winslash = "/", mustWork = TRUE)))
+    target <- file.path(project_root, "outputs", "master")
+    dir.create(target, recursive = TRUE, showWarnings = FALSE)
+    rmarkdown::render(input, output_dir = target, envir = new.env(parent = globalenv()))
+  })
+---
+
+# Research and Literature Review
+
+## Research Background
+
+Bitcoin has become an important subject in financial research because its returns may be associated with developments in traditional financial markets and the broader economy. Although Bitcoin operates independently of conventional banking systems, its market performance may coincide with changes in investor confidence, interest rates, exchange rates, and commodity prices. Examining these relationships can help researchers understand whether Bitcoin responds to the same financial conditions that influence other assets.
+
+This study examines the relationship between Bitcoin's monthly log returns and eight financial and economic indicators from January 2018 to December 2025. These include S&P 500 returns, U.S. Dollar Index (DXY) returns, changes in the U.S. 10-year Treasury yield, the CBOE Volatility Index (VIX), Philippine M3 growth, changes in the Bangko Sentral ng Pilipinas (BSP) overnight reverse repurchase (RRP) rate, changes in the USD/PHP exchange rate, and West Texas Intermediate (WTI) crude oil returns.
+
+## Review of Related Literature
+
+Panagiotidis, Stengos, and Vravosinos (2019) examined how financial markets, uncertainty, and public interest relate to Bitcoin returns. Using vector autoregression (VAR) and factor-augmented VAR (FAVAR) models, they considered stock-market returns, exchange rates, gold and oil returns, central-bank interest rates, and internet search activity. Their findings showed significant interactions between Bitcoin and traditional stock markets, while interactions with foreign-exchange markets and the broader macroeconomy were weaker. This suggests that traditional financial-market conditions are worth considering when examining Bitcoin returns, although their influence may differ across variables.
+
+Jareño et al. (2020) studied Bitcoin's relationship with international financial risk factors, including U.S. stock-market returns, interest rates, crude oil prices, and the VIX. Using quantile regression and a nonlinear autoregressive distributed lag (NARDL) approach, the researchers found that the VIX was an important risk factor, with negative and statistically significant effects on Bitcoin returns across most of the periods and quantiles examined. U.S. stock-market returns had positive and statistically significant effects in their model, while oil returns had negative effects at lower Bitcoin-return quantiles. The study also found that Bitcoin's sensitivity to international risk factors was more pronounced under extreme market conditions. These findings are relevant to the present study because several of its explanatory variables overlap with those examined by Jareño et al. However, their findings cannot automatically be assumed to apply to the 2018–2025 sample.
+
+Monetary policy is another factor that may be associated with Bitcoin's performance. Karau (2023) examined the effects of U.S. monetary policy and found that Bitcoin's response to policy changes evolved over time. Since late 2020, Bitcoin prices have tended to fall immediately following Federal Reserve tightening announcements, whereas earlier in its history, tightening had been associated with increases in Bitcoin prices. This suggests that Bitcoin's relationship with monetary conditions can change over time. Although the study focuses on monetary-policy announcements rather than changes in the U.S. 10-year Treasury yield specifically, it provides a basis for investigating whether interest-rate movements are associated with Bitcoin's monthly returns.
+
+Exchange rates and Philippine monetary conditions provide additional areas for investigation. Panagiotidis et al. (2019) included exchange rates in their analysis but found weaker interactions between Bitcoin and foreign-exchange markets than between Bitcoin and traditional stock markets. The present study examines both DXY returns and changes in the USD/PHP exchange rate. These indicators measure different aspects of currency movements: DXY tracks the U.S. dollar against a basket of major currencies, while USD/PHP measures the peso's value against the dollar. The study also includes Philippine M3 growth and changes in the BSP overnight RRP rate to examine whether domestic monetary conditions are associated with Bitcoin returns. Their inclusion extends the analysis to Philippine economic conditions, but their relationships with Bitcoin returns remain to be tested.
+
+WTI crude oil returns are included because oil prices reflect changes in global commodity markets and may move alongside broader economic and financial conditions. Jareño et al. (2020) found that the relationship between oil returns and Bitcoin differed across Bitcoin-return quantiles. This suggests that the relationship may depend on market conditions rather than follow a consistent direction. The present study will therefore test whether WTI returns are associated with Bitcoin's monthly log returns during the selected period.
+
+## Research Gap
+
+Previous studies have examined Bitcoin's relationships with stock-market performance, market volatility, monetary policy, exchange rates, and commodity prices. Their findings suggest that these relationships can differ across periods and market conditions. However, the studies reviewed do not directly establish whether Philippine M3 growth and changes in the BSP overnight RRP rate are associated with Bitcoin returns when examined alongside international financial indicators.
+
+This study extends previous research by examining whether global financial-market indicators and Philippine monetary variables are jointly associated with Bitcoin's monthly log returns during the January 2018–December 2025 period. Using multiple regression, it will assess whether the eight explanatory variables have statistically significant associations with Bitcoin's monthly log returns. The results will help identify which variables, if any, are associated with Bitcoin returns in the selected sample. These relationships will be interpreted as statistical associations rather than proof of causation.
+
+## References
+
+Jareño, F., González, M. de la O., Tolentino, M., & Sierra, K. (2020). Bitcoin and gold price returns: A quantile regression and NARDL analysis. Resources Policy, 67, Article 101666. https://doi.org/10.1016/j.resourpol.2020.101666
+
+Karau, S. (2023). Monetary policy and Bitcoin. Journal of International Money and Finance, 137, Article 102880. https://doi.org/10.1016/j.jimonfin.2023.102880
+
+Panagiotidis, T., Stengos, T., & Vravosinos, O. (2019). The effects of markets, uncertainty and search intensity on bitcoin returns. International Review of Financial Analysis, 63, 220–242. https://doi.org/10.1016/j.irfa.2018.11.002
+
+# Data Preparation and Cleaning
+
+The data cleaning script (`scripts/BTC_Data_Cleaning.R`) prepares a monthly dataset covering January 2018 to December 2025. December 2017 is used as the preceding month for calculating the first monthly returns and differences. The script aligns the source series to a common monthly calendar, using each month's last valid observation for prices, exchange rates and yields, and a monthly average for VIX. Bitcoin's month-end value is based on its last daily close, since BTC trades every day.
+
+The final variables consist of BTC, S&P 500, broad U.S. dollar index and WTI monthly log returns; first differences in the U.S. 10-year Treasury yield and BSP RRP rate; the monthly average VIX; the monthly log change in USD/PHP; and Philippine M3 growth. M3 uses the BSP-published year-on-year percentage growth in the current dataset, pending confirmation against the assignment's master metadata dictionary.
+
+The cleaning process checks dates, duplicate observations, numeric values and missing entries. It does not interpolate missing values or remove legitimate extreme market movements. The processed data and quality reports are saved under `data/processed/` and `outputs/data_quality/`, respectively. The resulting `BTC_regression_ready.csv` contains 96 monthly observations with no missing values. The complete cleaning procedure remains in `scripts/BTC_Data_Cleaning.R`.
+
+# Exploratory Data Analysis
+
+```{r eda-setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center", fig.width = 9, fig.height = 5)
+
+# install.packages(c("tidyverse", "skimr", "moments", "PerformanceAnalytics", "xts", "zoo",
+#                    "corrplot", "GGally", "car", "tseries", "patchwork", "flextable",
+#                    "ggrepel", "knitr", "rmarkdown"))
+
+library(tidyverse)            # readr, dplyr, tidyr, ggplot2, purrr, lubridate (R >= 4.1 recommended)
+library(zoo)                  # rolling windows
+library(xts)                  # time series objects
+library(skimr)                # quick data summaries
+library(moments)              # skewness and kurtosis
+library(PerformanceAnalytics) # finance oriented summaries
+library(corrplot)             # correlation heatmap
+library(GGally)               # pairs plot
+library(car)                  # variance inflation factors
+library(tseries)              # Jarque-Bera test
+library(patchwork)            # combine ggplot panels
+library(flextable)            # report ready tables
+library(ggrepel)              # non-overlapping point labels
+
+theme_set(theme_minimal(base_size = 11))
+set.seed(123)
+
+# ---- Project paths ----------------------------------------------------------
+# Repository layout:
+#   FINARTS-Case-1/
+#     data/raw/                     Source CSV files (including BSP rate)
+#     data/processed/               Shared BTC_regression_ready.csv, audit levels
+#     reports/BTC_EDA.Rmd           This file
+#     outputs/eda/figures/          Generated figure PNGs
+#     outputs/eda/tables/           Generated CSV tables
+#
+# RStudio usually knits with the reports/ directory as the working directory,
+# while source() and rmarkdown::render() may be run from the repository root.
+# Search upward so BOTH entry points find the same data and output locations.
+find_project_root <- function(start = getwd(), max_up = 8L) {
+  current <- normalizePath(start, winslash = "/", mustWork = TRUE)
+  for (i in 0:max_up) {
+    if (dir.exists(file.path(current, "data", "processed")) &&
+        dir.exists(file.path(current, "data", "raw")) &&
+        file.exists(file.path(current, "README.md"))) return(current)
+    parent <- dirname(current)
+    if (parent == current) break
+    current <- parent
+  }
+  stop("Project root not found. Open FINARTS-Case-1.Rproj and retry.", call. = FALSE)
+}
+
+PROJ_ROOT <- find_project_root()
+DATA_PATH <- file.path(PROJ_ROOT, "data", "processed")
+RAW_DATA_PATH <- file.path(PROJ_ROOT, "data", "raw")
+OUT_DIR <- file.path(PROJ_ROOT, "outputs", "eda")
+FIG_DIR <- file.path(OUT_DIR, "figures")
+TABLE_DIR <- file.path(OUT_DIR, "tables")
+invisible(lapply(c(OUT_DIR, FIG_DIR, TABLE_DIR),
+                 dir.create, recursive = TRUE, showWarnings = FALSE))
+
+# Save all figures as PNG and exported tables as CSV in outputs/eda/.
+knitr::opts_chunk$set(fig.path = paste0(FIG_DIR, "/"), dev = "png", dpi = 120)
+
+find_data <- function(fname, location = c("processed", "raw")) {
+  location <- match.arg(location)
+  folder <- if (location == "raw") RAW_DATA_PATH else DATA_PATH
+  f <- file.path(folder, fname)
+  if (!file.exists(f)) {
+    stop("Cannot find '", fname, "' in ", folder,
+         ". Run scripts/BTC_Data_Cleaning.R if the processed dataset is missing.",
+         call. = FALSE)
+  }
+  f
+}
+
+# Report-ready table helper. When `name` is given, the table is also saved as a CSV file
+# in outputs/eda/tables/<name>.csv (UTF-8 with BOM so Excel opens it correctly).
+ft <- function(df, digits = 3, name = NULL) {
+  if (!is.null(name)) {
+    readr::write_excel_csv(as.data.frame(df), file.path(TABLE_DIR, paste0(name, ".csv")))
+  }
+  flextable::flextable(df) %>%
+    flextable::colformat_double(digits = digits) %>%
+    flextable::theme_booktabs() %>%
+    flextable::autofit()
+}
+```
+
+## Purpose and scope
+
+This case study asks which global financial conditions and Philippine macro-financial variables are associated with monthly Bitcoin log returns. This document only describes and checks the data: it audits the cleaned dataset, summarizes each variable, and examines distributions, relationships and possible problems (outliers, persistence, correlated regressors). No variable selection or final model choice happens here; those decisions belong to the modeling stage.
+
+The sample is monthly, from January 2018 to December 2025 (96 observations). `BTC_Return`, the monthly log return of Bitcoin, is the dependent variable. The eight candidate regressors are `SP500`, `USD_Index`, `US_10Y_Yield`, `VIX`, `Philippine_M3_growth`, `BSP_RRP_Rate`, `USD_PHP` and `WTI`. All relationships reported below are descriptive: they show association, not causation.
+
+## Data import and audit
+
+### Import the cleaned dataset
+
+```{r eda-import_data}
+f_main <- find_data("BTC_regression_ready.csv")
+cat("Reading:", f_main, "\n")
+
+dat <- read_csv(f_main,
+                col_types = cols(date = col_date(format = "%Y-%m-%d"), .default = col_double())) %>%
+  arrange(date)
+
+y_var    <- "BTC_Return"                              # dependent variable
+x_vars   <- setdiff(names(dat), c("date", y_var))     # the eight regressors
+all_vars <- c(y_var, x_vars)
+
+# Helper: wide -> long, with variables kept in their original order for plotting
+to_long <- function(df, vars = all_vars) {
+  df %>%
+    dplyr::select(date, all_of(vars)) %>%
+    pivot_longer(all_of(vars), names_to = "variable", values_to = "value") %>%
+    mutate(variable = factor(variable, levels = vars))
+}
+
+head(dat)
+```
+
+```{r eda-duplicate_file_check}
+# BTC_monthly_cleaned_all.csv and BTC_regression_ready.csv: are they the same file?
+f_alt <- tryCatch(find_data("BTC_monthly_cleaned_all.csv"), error = function(e) NA_character_)
+if (!is.na(f_alt)) {
+  same <- unname(tools::md5sum(f_main) == tools::md5sum(f_alt))
+  cat("BTC_monthly_cleaned_all.csv is byte-for-byte identical to BTC_regression_ready.csv:", same, "\n")
+} else {
+  cat("BTC_monthly_cleaned_all.csv not found (not needed for the analysis).\n")
+}
+```
+
+### Check structure and integrity
+
+```{r eda-audit_structure}
+glimpse(dat)
+
+cat("Rows:", nrow(dat), "| Columns:", ncol(dat), "\n")
+cat("Any missing values:", anyNA(dat), "\n")
+cat("Sample period:", format(min(dat$date)), "to", format(max(dat$date)), "\n")
+
+# Consecutive dates should be exactly one month apart
+gap_months <- interval(head(dat$date, -1), tail(dat$date, -1)) %/% months(1)
+cat("Months between consecutive dates (should only show 1):",
+    paste(sort(unique(gap_months)), collapse = ", "), "\n")
+
+# Missing values per variable
+colSums(is.na(dat))
+
+summary(dat)
+```
+
+```{r eda-audit_ranges}
+# Observed minimum and maximum of each variable
+obs_range <- dat %>%
+  summarise(across(all_of(all_vars), list(min = min, max = max))) %>%
+  pivot_longer(everything(), names_to = c("variable", ".value"),
+               names_pattern = "^(.*)_(min|max)$")
+ft(obs_range, digits = 4, name = "audit_observed_ranges")
+```
+
+```{r eda-audit_reconcile_levels}
+# Cross-check: recompute every cleaned variable from the levels file and compare.
+# NOTE: BTC_monthly_levels.csv reuses the same column names, but the column "BTC_Return"
+# there actually holds the BTC PRICE, so it is renamed to BTC_Price here.
+f_lv <- find_data("BTC_monthly_levels.csv")
+lv <- read_csv(f_lv, col_types = cols(date = col_date(format = "%Y-%m-%d"), .default = col_double())) %>%
+  arrange(date) %>%
+  rename(BTC_Price = BTC_Return)
+
+recomputed <- lv %>%
+  transmute(date,
+            BTC_Return           = c(NA, diff(log(BTC_Price))),
+            SP500                = c(NA, diff(log(SP500))),
+            USD_Index            = c(NA, diff(log(USD_Index))),
+            US_10Y_Yield         = c(NA, diff(US_10Y_Yield)),
+            VIX                  = VIX,
+            Philippine_M3_growth = Philippine_M3_growth,
+            BSP_RRP_Rate         = c(NA, diff(BSP_RRP_Rate)),
+            USD_PHP              = c(NA, diff(log(USD_PHP))),
+            WTI                  = c(NA, diff(log(WTI)))) %>%
+  filter(date %in% dat$date) %>%
+  arrange(date)
+
+stopifnot(identical(recomputed$date, dat$date))
+
+recon_tbl <- tibble(variable = all_vars,
+                    max_abs_difference = map_dbl(all_vars, ~ max(abs(recomputed[[.x]] - dat[[.x]]))),
+                    reconciles = max_abs_difference < 1e-8)
+ft(recon_tbl, digits = 12, name = "audit_reconciliation")
+```
+
+The cleaned dataset has N = 96 monthly observations and 10 columns (the date plus nine numeric variables), covering January 2018 to December 2025. There are no missing values, and consecutive dates are exactly one month apart, so the monthly series is complete. (The levels file has 97 rows because December 2017 is the starting point needed to compute the first differences and log returns.)
+
+The documented ranges from the header of the cleaning script were not available for this document. Instead, every cleaned variable was recomputed from `BTC_monthly_levels.csv` (log returns for BTC, S&P 500, the dollar index, USD/PHP and WTI; first differences for the 10-year yield and the BSP rate; levels for VIX and M3 growth). All nine variables reconcile with the cleaned file to within floating-point error (differences below $10^{-15}$), and the observed minimums and maximums are economically plausible. The audit therefore found no data integrity problems and confirms that the cleaning transformations were applied as described.
+
+### Data description table
+
+```{r eda-data_description_table}
+# Transformations and units below were verified numerically in the reconciliation chunk above.
+# The BSP source is taken from the header of BSP_RRP_Rate.csv; for the other series the data
+# providers are listed in the variable summary of BTC_Data_Cleaning.R.
+var_info <- tribble(
+  ~variable,              ~meaning,                                         ~transformation,                                      ~unit,                                 ~type,          ~source,
+  "BTC_Return",           "Bitcoin monthly return (dependent variable)",     "Log return: ln(P_t / P_t-1) of the monthly BTC price", "Decimal (0.01 = about 1%)",            "log_return",   "See BTC_Data_Cleaning.R",
+  "SP500",                "S&P 500 equity index return",                     "Log return of the monthly index level",              "Decimal (0.01 = about 1%)",           "log_return",   "See BTC_Data_Cleaning.R",
+  "USD_Index",            "US dollar index return",                          "Log return of the monthly index level",              "Decimal (0.01 = about 1%)",           "log_return",   "See BTC_Data_Cleaning.R",
+  "US_10Y_Yield",         "US 10-year Treasury yield",                       "First difference of the monthly yield (level change)", "Percentage points",                 "pp_change",    "See BTC_Data_Cleaning.R",
+  "VIX",                  "CBOE volatility index (market fear gauge)",       "Level (monthly average of daily values), not differenced",                             "Index points",                        "index_level",  "See BTC_Data_Cleaning.R",
+  "Philippine_M3_growth", "Growth of Philippine M3 money supply",            "Year-on-year growth, as built in the cleaning script", "Percent",            "pct_growth",   "See BTC_Data_Cleaning.R",
+  "BSP_RRP_Rate",         "Change in the BSP target reverse repurchase (RRP) rate", "First difference of the end-of-month target RRP rate", "Percentage points",       "pp_change",    "Bangko Sentral ng Pilipinas (Selected Domestic Interest Rates, Target RRP Rate)",
+  "USD_PHP",              "Peso per US dollar exchange rate return (positive = peso depreciation)", "Log return of the monthly exchange rate", "Decimal (0.01 = about 1%)",    "log_return",   "See BTC_Data_Cleaning.R",
+  "WTI",                  "WTI crude oil price return",                      "Log return of the monthly price",                    "Decimal (0.01 = about 1%)",           "log_return",   "See BTC_Data_Cleaning.R"
+)
+
+ft(var_info %>% dplyr::select(-type), digits = 3, name = "data_description")
+```
+
+The variables are measured in different units. `BTC_Return`, `SP500`, `USD_Index`, `USD_PHP` and `WTI` are decimal log returns (0.01 is about 1%), `US_10Y_Yield` and `BSP_RRP_Rate` are changes in percentage points, `VIX` is an index level in points, and `Philippine_M3_growth` is a year-on-year growth rate in percent. This matters when reading regression coefficients later: a coefficient on a return variable is the BTC response to a one unit (100%) log return, a coefficient on `VIX` is the response to one index point, and so on, so raw coefficient sizes are not comparable across regressors. The one standard deviation table in the next section puts the regressors on a common footing for judging economic significance. Note also that `VIX` and `Philippine_M3_growth` are levels while the other regressors and the dependent variable are changes or returns.
+
+The levels file `BTC_monthly_levels.csv` reuses the same column names for price and level data: its `BTC_Return` column actually holds the BTC price in US dollars, and `SP500`, `USD_Index` and the others hold index levels. That file is therefore not a regression input and was used here only for the reconciliation.
+
+## Descriptive statistics
+
+### Summary statistics for all variables
+
+For a sample $x_1,\dots,x_n$ with mean $\bar{x}$ and central moments $m_k = \frac{1}{n}\sum_{i}(x_i-\bar{x})^k$:
+
+$$
+\text{skewness} = \frac{m_3}{m_2^{3/2}}, \qquad
+\text{kurtosis} = \frac{m_4}{m_2^{2}}, \qquad
+\text{excess kurtosis} = \text{kurtosis} - 3 .
+$$
+
+A normal distribution has skewness 0 and kurtosis 3 (excess kurtosis 0).
+
+```{r eda-descriptive_stats}
+desc_tbl <- dat %>%
+  dplyr::select(all_of(all_vars)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "value") %>%
+  group_by(variable) %>%
+  summarise(n = n(),
+            mean = mean(value),
+            median = median(value),
+            sd = sd(value),
+            min = min(value),
+            max = max(value),
+            skewness = moments::skewness(value),
+            kurtosis = moments::kurtosis(value),
+            excess_kurtosis = kurtosis - 3,
+            .groups = "drop") %>%
+  mutate(variable = factor(variable, levels = all_vars)) %>%
+  arrange(variable) %>%
+  mutate(variable = as.character(variable))
+
+ft(desc_tbl, digits = 4, name = "descriptive_statistics")
+```
+
+```{r eda-descriptive_stats_extra}
+# Quick overview with mini histograms
+skim(dat)
+
+# Finance-oriented summary (note: Kurtosis reported here is EXCESS kurtosis)
+dat_xts <- xts(dat[, all_vars], order.by = dat$date)
+table.Stats(dat_xts) %>%
+  as.data.frame() %>%
+  rownames_to_column("statistic") %>%
+  ft(digits = 4, name = "descriptive_table_stats")
+```
+
+### BTC volatility and one standard deviation moves
+
+With monthly standard deviation $\sigma_m$ and independent months, the annualized volatility is
+
+$$
+\sigma_{\text{ann}} = \sigma_m \sqrt{12}.
+$$
+
+For a log return, a one standard deviation move of size $\sigma$ corresponds to a simple change of $e^{\sigma}-1$.
+
+```{r eda-volatility_and_scale}
+ret_vars <- var_info %>% filter(type == "log_return") %>% pull(variable)
+
+vol_tbl <- tibble(variable = ret_vars,
+                  monthly_sd = map_dbl(ret_vars, ~ sd(dat[[.x]]))) %>%
+  mutate(annualized_vol = monthly_sd * sqrt(12),
+         annualized_vol_pct = 100 * annualized_vol)
+ft(vol_tbl, digits = 4, name = "annualized_volatility")
+
+# Size of a one standard deviation move for every variable, in its own units
+sd_tbl <- var_info %>%
+  mutate(sd = map_dbl(variable, ~ sd(dat[[.x]])),
+         one_sd_move = case_when(
+           type == "log_return"  ~ sprintf("about %.1f%% (log-return sd = %.4f)", 100 * (exp(sd) - 1), sd),
+           type == "pp_change"   ~ sprintf("%.3f percentage points", sd),
+           type == "index_level" ~ sprintf("%.2f index points", sd),
+           type == "pct_growth"  ~ sprintf("%.2f percentage points of growth", sd))) %>%
+  dplyr::select(variable, unit, sd, one_sd_move)
+ft(sd_tbl, digits = 4, name = "one_sd_moves")
+```
+
+Bitcoin is by far the most volatile series. Its monthly standard deviation is 0.192 (a one standard deviation move is about 21% in simple terms), or roughly 66% annualized. That is about four times the S&P 500 (4.8% monthly, 16.5% annualized) and well above WTI (13.6% monthly, 47% annualized), the dollar index (1.6% monthly, 5.5% annualized) and USD/PHP (1.6% monthly, 5.5% annualized). The average monthly BTC log return is 0.019 (median 0.012), but with a standard error of about 0.020 the mean cannot be distinguished from zero (t of about 1.0): the noise is large relative to the average drift. The best month was May 2019 (+0.47 log, about +60%) and the worst was June 2022 (−0.47 log, about −38%).
+
+Among the regressors, `VIX` and `WTI` are the most unusual. `VIX` is strongly right skewed (skewness 2.37, kurtosis 12.5) and `WTI` is left skewed (−1.11) with kurtosis of 16.9; both are driven by March to May 2020. `Philippine_M3_growth` is right skewed (1.17), `BSP_RRP_Rate` has kurtosis of 5.5 because most months are zero with a few large moves, and `SP500` (−0.60) and `USD_PHP` (0.56) are mildly skewed. `USD_Index` and `US_10Y_Yield` are close to symmetric.
+
+For `BTC_Return`, kurtosis is 3.05 (excess kurtosis 0.05) and skewness is −0.14, essentially the values of a normal distribution, and the Jarque-Bera test does not reject normality (p = 0.86). In this monthly sample the tail risk of Bitcoin therefore lies in its large overall scale rather than in heavy tails: five months fall beyond two standard deviations and none beyond three. With only 96 observations the kurtosis estimate is noisy, and monthly aggregation can smooth out the fat tails that typically show up in higher frequency data, so this does not prove that extreme months cannot occur.
+
+## Univariate analysis
+
+### Time plots
+
+```{r eda-time_plots, fig.height=8, fig.width=11}
+# Shaded episodes (March 2020 and calendar 2022)
+episodes <- tibble(label = c("Mar 2020", "2022"),
+                   start = ymd(c("2020-02-15", "2021-12-16")),
+                   end   = ymd(c("2020-03-16", "2022-12-16")))
+
+to_long(dat) %>%
+  ggplot(aes(date, value)) +
+  geom_rect(data = episodes, aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE, fill = "orange", alpha = 0.18) +
+  geom_line(colour = "steelblue", linewidth = 0.5) +
+  facet_wrap(~ variable, ncol = 3, scales = "free_y") +
+  labs(title = "Monthly series, January 2018 to December 2025",
+       subtitle = "Shaded: March 2020 and 2022", x = NULL, y = NULL)
+```
+
+### Distributions
+
+```{r eda-distribution_plots_hist, fig.height=8, fig.width=11}
+long_all <- to_long(dat)
+
+ggplot(long_all, aes(value)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 20,
+                 fill = "steelblue", alpha = 0.6, colour = "white") +
+  geom_density(colour = "darkred", linewidth = 0.7) +
+  facet_wrap(~ variable, ncol = 3, scales = "free") +
+  labs(title = "Histograms with density curves", x = NULL, y = "Density")
+```
+
+```{r eda-distribution_plots_box, fig.height=8, fig.width=11}
+ggplot(long_all, aes(x = "", y = value)) +
+  geom_boxplot(fill = "lightsteelblue", outlier.colour = "red", outlier.size = 1.8) +
+  facet_wrap(~ variable, ncol = 3, scales = "free_y") +
+  labs(title = "Boxplots (red points: beyond 1.5 x IQR)", x = NULL, y = NULL)
+```
+
+```{r eda-distribution_plots_qq, fig.height=8, fig.width=11}
+ggplot(long_all, aes(sample = value)) +
+  stat_qq(alpha = 0.7) +
+  stat_qq_line(colour = "red") +
+  facet_wrap(~ variable, ncol = 3, scales = "free") +
+  labs(title = "Normal QQ plots", x = "Theoretical quantiles", y = "Sample quantiles")
+```
+
+```{r eda-normality_tests}
+# Supporting evidence only: Jarque-Bera (skewness and kurtosis) and Shapiro-Wilk
+norm_tbl <- map_dfr(all_vars, function(v) {
+  x  <- dat[[v]]
+  jb <- tseries::jarque.bera.test(x)
+  sw <- shapiro.test(x)
+  tibble(variable = v,
+         JB_statistic = unname(jb$statistic), JB_p_value = format.pval(jb$p.value, digits = 3, eps = 1e-4),
+         SW_statistic = unname(sw$statistic), SW_p_value = format.pval(sw$p.value, digits = 3, eps = 1e-4))
+})
+ft(norm_tbl, digits = 4, name = "normality_tests")
+```
+
+### The BSP_RRP_Rate change variable
+
+```{r eda-rrp_counts, fig.height=4.5, fig.width=11}
+rrp_dir <- dat %>%
+  mutate(direction = case_when(BSP_RRP_Rate > 0 ~ "Hike (positive change)",
+                               BSP_RRP_Rate < 0 ~ "Cut (negative change)",
+                               TRUE             ~ "No change (zero)"),
+         direction = factor(direction, levels = c("Cut (negative change)", "No change (zero)", "Hike (positive change)"))) %>%
+  count(direction, .drop = FALSE) %>%
+  mutate(share = n / sum(n))
+ft(rrp_dir, digits = 3, name = "rrp_direction_counts")
+
+rrp_sizes <- dat %>% count(BSP_RRP_Rate) %>% mutate(share = n / sum(n))
+ft(rrp_sizes, digits = 3, name = "rrp_size_counts")
+
+p_sizes <- ggplot(rrp_sizes, aes(factor(BSP_RRP_Rate), n,
+                                 fill = case_when(BSP_RRP_Rate > 0 ~ "hike",
+                                                  BSP_RRP_Rate < 0 ~ "cut",
+                                                  TRUE ~ "none"))) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = n), vjust = -0.3, size = 3) +
+  scale_fill_manual(values = c(hike = "firebrick", cut = "steelblue", none = "grey60")) +
+  labs(title = "Number of months by size of change", x = "Change in target RRP rate (percentage points)", y = "Months")
+
+p_when <- ggplot(dat, aes(date, BSP_RRP_Rate)) +
+  geom_col(fill = "grey30", width = 25) +
+  labs(title = "When the changes happened", x = NULL, y = "Change (pp)")
+
+p_sizes + p_when
+```
+
+```{r eda-bsp_context, fig.height=4.5}
+# Context: the RRP LEVEL over time (BSP_RRP_Rate.csv runs beyond the sample period)
+f_bsp <- find_data("BSP_RRP_Rate.csv", location = "raw")
+bsp <- read_csv(f_bsp, show_col_types = FALSE) %>%
+  dplyr::select(date, target_rrp = value, overnight_rrp_monthly = on_rrp_overnight_monthly)
+
+cat("BSP file covers", format(min(bsp$date)), "to", format(max(bsp$date)),
+    "|", sum(bsp$date > max(dat$date)), "months fall after the BTC sample ends and are not used.\n")
+
+ggplot(bsp, aes(date)) +
+  annotate("rect", xmin = min(dat$date), xmax = max(dat$date), ymin = -Inf, ymax = Inf,
+           fill = "orange", alpha = 0.15) +
+  geom_step(aes(y = target_rrp, colour = "Target RRP rate (end of month)"), linewidth = 0.8) +
+  geom_line(aes(y = overnight_rrp_monthly, colour = "Overnight RRP (monthly average)"),
+            linewidth = 0.5, na.rm = TRUE) +
+  scale_colour_manual(values = c("Target RRP rate (end of month)" = "darkred",
+                                 "Overnight RRP (monthly average)" = "grey50")) +
+  labs(title = "BSP policy rate level", subtitle = "Shaded: the Jan 2018 to Dec 2025 sample",
+       x = NULL, y = "Percent per annum", colour = NULL) +
+  theme(legend.position = "bottom")
+```
+
+`BSP_RRP_Rate` is a policy rate change, and it is sparse. In 65 of the 96 months (68%) there is no change, and only 31 months have a non-zero change: 13 cuts of 0.25 pp, 3 cuts of 0.50 pp, 7 hikes of 0.25 pp, 6 hikes of 0.50 pp and 2 hikes of 0.75 pp. The changes also arrive in clusters: hikes in 2018, cuts in 2019 and 2020, a tightening cycle from May 2022 to March 2023 (plus one hike in October 2023), and cuts from August 2024 onward.
+
+A histogram of such a variable is one tall spike at zero with a few small bars, so the mean, standard deviation and normality statistics say little (the Jarque-Bera test rejects normality with p below 0.0001). For regression this has three implications. First, the coefficient is identified from only 31 months concentrated in a few episodes that overlap with other major events (COVID-19 in 2020, the 2022 tightening and crypto sell-off), so a policy effect is hard to separate from everything else happening in those months. Second, one slope forces cuts and hikes to have mirror image effects. Third, a one standard deviation move (0.22 pp) is not a move the BSP actually makes, since real moves are zero or multiples of 0.25 pp. The coefficient should be expected to be imprecisely estimated, and separate hike and cut indicators, or the policy rate level, are alternatives worth considering at the modeling stage.
+
+### Persistence and volatility clustering
+
+For a series $x_t$ the sample autocorrelation at lag $k$ is
+
+$$
+\hat{\rho}_k = \frac{\sum_{t=k+1}^{n}(x_t-\bar{x})(x_{t-k}-\bar{x})}{\sum_{t=1}^{n}(x_t-\bar{x})^2},
+$$
+
+and the dashed lines in the plots mark the approximate 95% band $\pm 1.96/\sqrt{n}$ under no autocorrelation.
+
+```{r eda-autocorrelation_plots, fig.height=8, fig.width=11}
+acf_df <- function(x, v, lag.max = 24) {
+  a <- acf(x, lag.max = lag.max, plot = FALSE)
+  tibble(variable = v,
+         lag = as.numeric(a$lag)[-1],
+         acf = as.numeric(a$acf)[-1],
+         ci  = qnorm(0.975) / sqrt(length(x)))
+}
+
+acf_all <- map_dfr(all_vars, ~ acf_df(dat[[.x]], .x)) %>%
+  mutate(variable = factor(variable, levels = all_vars))
+
+ggplot(acf_all, aes(lag, acf)) +
+  geom_col(fill = "steelblue", width = 0.6) +
+  geom_hline(aes(yintercept =  ci), linetype = "dashed", colour = "red") +
+  geom_hline(aes(yintercept = -ci), linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = 0) +
+  facet_wrap(~ variable, ncol = 3) +
+  labs(title = "Autocorrelation functions (24 lags)", x = "Lag (months)", y = "ACF")
+```
+
+```{r eda-ljung_box_and_rolling_sd, fig.height=4.5}
+lb_one <- function(x, lag) {
+  b <- Box.test(x, lag = lag, type = "Ljung-Box")
+  tibble(Q = unname(b$statistic), p_value = b$p.value)
+}
+
+# Ljung-Box (lag 12) for every series
+lb_all <- map_dfr(all_vars, ~ bind_cols(tibble(series = .x), lb_one(dat[[.x]], 12))) %>%
+  mutate(p_value = format.pval(p_value, digits = 3, eps = 1e-4))
+ft(lb_all, digits = 3, name = "ljung_box_all_series")
+
+# BTC_Return and its square (squared returns test for volatility clustering)
+lb_btc <- expand_grid(series = c("BTC_Return", "BTC_Return squared"), lag = c(6, 12)) %>%
+  mutate(res = map2(series, lag, function(s, l) {
+    x <- if (s == "BTC_Return") dat$BTC_Return else dat$BTC_Return^2
+    lb_one(x, l)
+  })) %>%
+  unnest(res) %>%
+  mutate(p_value = format.pval(p_value, digits = 3, eps = 1e-4))
+ft(lb_btc, digits = 3, name = "ljung_box_btc")
+
+# 12-month rolling standard deviation of BTC_Return
+roll_sd <- tibble(date = dat$date,
+                  sd_12m = zoo::rollapply(dat$BTC_Return, width = 12, FUN = sd,
+                                          align = "right", fill = NA))
+
+ggplot(roll_sd, aes(date, sd_12m)) +
+  geom_line(colour = "darkred", linewidth = 0.8, na.rm = TRUE) +
+  geom_hline(yintercept = sd(dat$BTC_Return), linetype = "dashed") +
+  labs(title = "12-month rolling standard deviation of BTC_Return",
+       subtitle = "Dashed line: full-sample standard deviation", x = NULL, y = "Rolling SD")
+```
+
+The return type series show little persistence. Their first lag autocorrelations are 0.12 for `BTC_Return`, −0.14 for `SP500`, 0.04 for `USD_Index`, 0.07 for `US_10Y_Yield`, 0.10 for `USD_PHP` and 0.13 for `WTI`, all inside or near the ±0.20 band, and the Ljung-Box test at 12 lags does not reject for any of them (p between 0.13 and 0.94). The slow moving series are the opposite. `Philippine_M3_growth` has a first lag autocorrelation of 0.92 with significant spikes at 12 of 24 lags (not surprising, because a year-on-year rate uses overlapping 12-month windows), `VIX` has 0.65 at lag 1 and 0.42 at lag 2, and `BSP_RRP_Rate` has 0.46 and 0.50 at lags 1 and 2, which reflects policy cycles. The Ljung-Box test rejects no autocorrelation for all three (p below 0.0001).
+
+There is no formal evidence of volatility clustering in Bitcoin: neither `BTC_Return` (Ljung-Box p = 0.77 at 6 lags and 0.86 at 12 lags) nor its square (p = 0.82 and 0.87) is significantly autocorrelated. The rolling standard deviation still drifts, from a peak of 0.24 in October 2021 down to 0.11 in November 2025 (full-sample standard deviation 0.19), so Bitcoin volatility has declined over time.
+
+For the regression residuals, persistent regressors do not by themselves imply autocorrelated errors, and since `BTC_Return` has no serial correlation the residuals may well be close to white noise. The risk is that `Philippine_M3_growth`, `VIX` and `BSP_RRP_Rate` follow slow regimes (such as the 2020 spike) and that the error variance changes over time. Both points should be checked in the residual diagnostics, and heteroskedasticity and autocorrelation consistent (HAC) standard errors are a reasonable safeguard.
+
+## Outliers and extreme months
+
+Each variable is standardized as $z_{t} = \dfrac{x_{t}-\bar{x}}{s}$, and a month is flagged as extreme when $|z_t| > 3$. **No observation is deleted**: the cleaning script keeps legitimate extremes on purpose.
+
+```{r eda-outlier_table}
+z <- dat %>% mutate(across(all_of(all_vars), ~ as.numeric(scale(.x))))
+
+z_long <- to_long(z) %>% rename(z = value)
+raw_long <- to_long(dat)
+
+extreme_long <- z_long %>%
+  left_join(raw_long, by = c("date", "variable")) %>%
+  filter(abs(z) > 3) %>%
+  arrange(date, variable) %>%
+  transmute(month = format(date, "%Y-%m"), variable, value, z)
+ft(extreme_long, digits = 3, name = "extreme_months")
+
+# Counts of flagged months per variable under three common rules
+out_counts <- z_long %>%
+  left_join(raw_long, by = c("date", "variable")) %>%
+  group_by(variable) %>%
+  summarise(n_abs_z_gt_2 = sum(abs(z) > 2),
+            n_abs_z_gt_3 = sum(abs(z) > 3),
+            n_boxplot_rule = sum(value < quantile(value, 0.25) - 1.5 * IQR(value) |
+                                 value > quantile(value, 0.75) + 1.5 * IQR(value)),
+            .groups = "drop")
+ft(out_counts, digits = 0, name = "outlier_counts")
+```
+
+```{r eda-outlier_cooccurrence, fig.height=5, fig.width=11}
+# Which variables are extreme together in the same month? (z-scores shown, red cells: |z| > 3)
+z_ext <- z %>%
+  filter(if_any(all_of(all_vars), ~ abs(.x) > 3)) %>%
+  mutate(n_extreme = rowSums(abs(across(all_of(all_vars))) > 3),
+         month = format(date, "%Y-%m")) %>%
+  dplyr::select(month, n_extreme, all_of(all_vars))
+
+ft(z_ext, digits = 2, name = "extreme_cooccurrence_zscores") %>%
+  flextable::bg(j = all_vars, bg = function(x) ifelse(abs(x) > 3, "#f8d7da", "transparent"))
+
+# Heat strip of all z-scores (clipped at +/- 4 for colour); stars mark |z| > 3
+z_ext_pts <- z_long %>% filter(abs(z) > 3)
+
+z_long %>%
+  mutate(z_clip = pmax(pmin(z, 4), -4)) %>%
+  ggplot(aes(date, variable, fill = z_clip)) +
+  geom_tile(width = 31, height = 0.95) +
+  geom_point(data = z_ext_pts, aes(date, variable), shape = 8, size = 1.6, inherit.aes = FALSE) +
+  scale_fill_gradient2(low = "steelblue", mid = "white", high = "firebrick",
+                       limits = c(-4, 4), name = "z-score") +
+  scale_y_discrete(limits = rev(all_vars)) +
+  labs(title = "Standardized values by month", subtitle = "Stars: |z| > 3", x = NULL, y = NULL)
+```
+
+Eight variable-month combinations exceed three standard deviations, and they are concentrated in two episodes. In March 2020, during the COVID-19 market crash, three variables are extreme at the same time: `SP500` (−0.134 log, about −12.5%), `VIX` (a monthly average of 57.7, the highest in the sample) and `WTI` (−0.78 log, about −54%, the oil price collapse). `VIX` is still extreme in April 2020 (41.5) and `WTI` rebounds in May 2020 (+0.62). In 2022 the extremes are tied to monetary tightening and market stress: `BSP_RRP_Rate` rose by 0.75 pp in both July and November 2022, and `USD_PHP` jumped by 0.052 log (a peso depreciation of about 5%) in June 2022. June 2022 is also Bitcoin's worst month, coinciding with stress in crypto markets (the collapse of Terra/Luna and the failure of crypto lenders) while US interest rates were rising, and November 2022 coincides with the collapse of the FTX exchange.
+
+`BTC_Return` itself never exceeds three standard deviations. Its five most extreme months (March 2018, November 2018, May 2019, May 2021 and June 2022) lie between 2.2 and 2.6 standard deviations, and March 2020 (−0.29 log, about −25%) is large but not extreme relative to Bitcoin's own volatility. March 2020 is the only month in which several variables are extreme together; every other flagged month has a single extreme variable. The boxplot rule flags 31 months for `BSP_RRP_Rate`, but that is an artifact of the zeros collapsing its interquartile range and is not informative.
+
+These months are genuine market events, not data errors, so none was removed. For the modeling stage the following should be considered: heteroskedasticity-robust (for example HC3) or HAC standard errors, dummy variables for March to May 2020 and for 2022, influence diagnostics (leverage, Cook's distance) for March 2020 and June 2022, and a sensitivity run without these months. Because the `VIX` and `WTI` extremes sit in the same months, their coefficients in particular could be driven by March to May 2020.
+
+## Bivariate analysis
+
+### Each regressor against BTC_Return
+
+```{r eda-scatter_panel, fig.height=7, fig.width=12}
+biv <- dat %>%
+  mutate(zy = as.numeric(scale(BTC_Return))) %>%
+  pivot_longer(all_of(x_vars), names_to = "regressor", values_to = "x") %>%
+  mutate(regressor = factor(regressor, levels = x_vars)) %>%
+  group_by(regressor) %>%
+  mutate(zx = as.numeric(scale(x))) %>%
+  ungroup() %>%
+  mutate(lab = if_else(abs(zx) > 3 | abs(zy) > 3, format(date, "%Y-%m"), NA_character_))
+
+ggplot(biv, aes(x, BTC_Return)) +
+  geom_point(alpha = 0.55, colour = "grey30") +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, colour = "red", linewidth = 0.8) +
+  geom_smooth(method = "loess", formula = y ~ x, se = FALSE, colour = "blue",
+              linetype = "dashed", linewidth = 0.8) +
+  geom_text_repel(aes(label = lab), size = 2.6, na.rm = TRUE, max.overlaps = Inf) +
+  scale_y_continuous(expand = expansion(mult = 0.1)) +
+  scale_x_continuous(expand = expansion(mult = 0.1)) +
+  facet_wrap(~ regressor, ncol = 4, scales = "free_x") +
+  labs(title = "BTC_Return against each regressor",
+       subtitle = "Red: linear fit. Blue dashed: LOESS. Labels: months with |z| > 3 on either axis.",
+       x = NULL, y = "BTC_Return")
+```
+
+```{r eda-correlations_with_btc, fig.height=4.5}
+cor_raw <- map_dfr(x_vars, function(v) {
+  p <- cor.test(dat[[v]], dat$BTC_Return, method = "pearson")
+  s <- suppressWarnings(cor.test(dat[[v]], dat$BTC_Return, method = "spearman", exact = FALSE))
+  tibble(regressor = v,
+         pearson_r = unname(p$estimate), pearson_p = p$p.value,
+         spearman_rho = unname(s$estimate), spearman_p = s$p.value,
+         gap = pearson_r - spearman_rho)
+}) %>%
+  arrange(desc(abs(pearson_r)))
+
+# A large gap between Pearson and Spearman can mean a few outliers drive the linear relationship
+cor_tbl <- cor_raw %>%
+  mutate(large_gap = abs(gap) > 0.10,
+         across(c(pearson_p, spearman_p), ~ format.pval(.x, digits = 3, eps = 1e-4)))
+ft(cor_tbl, digits = 3, name = "correlations_with_btc")
+
+cor_raw %>%
+  pivot_longer(c(pearson_r, spearman_rho), names_to = "type", values_to = "coef") %>%
+  mutate(regressor = fct_reorder(regressor, abs(coef), .fun = max)) %>%
+  ggplot(aes(regressor, coef, fill = type)) +
+  geom_col(position = "dodge") +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  scale_fill_manual(values = c(pearson_r = "steelblue", spearman_rho = "darkorange"),
+                    labels = c("Pearson r", "Spearman rho"), name = NULL) +
+  labs(title = "Correlation with BTC_Return", x = NULL, y = "Coefficient") +
+  theme(legend.position = "bottom")
+```
+
+Only `SP500` has a clear relationship with `BTC_Return`. The correlation is positive, 0.39 (Pearson, p = 0.0001) and 0.41 (Spearman), so Bitcoin tends to rise in months when US equities rise, consistent with Bitcoin trading as a risk asset over this period. It is the only result that survives a correction for testing eight regressors (Bonferroni threshold 0.05/8 = 0.006), and the near-identical Pearson and Spearman values show it is not driven by a few outliers.
+
+The other relationships are weak. `USD_PHP` (−0.19, p = 0.065), `USD_Index` (−0.16, p = 0.12) and `BSP_RRP_Rate` (−0.15, p = 0.15) have negative signs, in line with the idea that a stronger dollar, a weaker peso and tighter local monetary policy go with weaker Bitcoin returns, but none is significant at the 5% level. `USD_PHP` and `USD_Index` are correlated with each other (0.51), so they probably carry overlapping information. `WTI` has a Pearson correlation of 0.14 (p = 0.17) but a Spearman correlation of only 0.04, the largest gap (0.10) of all regressors, which suggests that a few extreme months, mainly March to May 2020, drive its linear relationship. `US_10Y_Yield` (−0.04), `VIX` (−0.04) and `Philippine_M3_growth` (−0.02) show essentially no linear association with `BTC_Return`. The LOESS curves mostly follow the straight lines except at the sparse ends of the x ranges, where they rest on a handful of points, so there is no strong evidence of nonlinearity. All of this describes co-movement in this sample; it is not evidence that any regressor causes Bitcoin returns to move.
+
+### Stability over time
+
+```{r eda-rolling_correlation, fig.height=4.5}
+# 24-month rolling correlation
+roll_cor <- function(x, y, w = 24) {
+  suppressWarnings(
+    zoo::rollapply(cbind(x, y), width = w, FUN = function(m) cor(m[, 1], m[, 2]),
+                   by.column = FALSE, align = "right", fill = NA)
+  )
+}
+
+rc_sp <- tibble(date = dat$date, rho = roll_cor(dat$BTC_Return, dat$SP500))
+
+ggplot(rc_sp, aes(date, rho)) +
+  geom_line(colour = "steelblue", linewidth = 0.9, na.rm = TRUE) +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = cor(dat$BTC_Return, dat$SP500), linetype = "dashed", colour = "red") +
+  labs(title = "24-month rolling correlation: BTC_Return and SP500",
+       subtitle = "Red dashed: full-sample correlation", x = NULL, y = "Correlation")
+```
+
+```{r eda-rolling_correlation_all, fig.height=6, fig.width=12}
+rc_all <- map_dfr(x_vars, ~ tibble(date = dat$date, regressor = .x,
+                                   rho = roll_cor(dat$BTC_Return, dat[[.x]]))) %>%
+  mutate(regressor = factor(regressor, levels = x_vars))
+
+ggplot(rc_all, aes(date, rho)) +
+  geom_line(colour = "steelblue", na.rm = TRUE) +
+  geom_hline(yintercept = 0) +
+  facet_wrap(~ regressor, ncol = 4) +
+  labs(title = "24-month rolling correlation with BTC_Return, all regressors", x = NULL, y = "Correlation")
+```
+
+```{r eda-subperiod_comparison, fig.height=7, fig.width=12}
+dat_p <- dat %>%
+  mutate(period = factor(if_else(date < ymd("2022-01-01"), "2018-2021", "2022-2025")))
+
+sub_cor <- dat_p %>%
+  pivot_longer(all_of(x_vars), names_to = "regressor", values_to = "x") %>%
+  mutate(regressor = factor(regressor, levels = x_vars)) %>%
+  group_by(period, regressor) %>%
+  summarise(n = n(),
+            r = cor(x, BTC_Return),
+            ci_low  = cor.test(x, BTC_Return)$conf.int[1],
+            ci_high = cor.test(x, BTC_Return)$conf.int[2],
+            .groups = "drop")
+
+# Side-by-side table with the change between periods
+sub_wide <- sub_cor %>%
+  dplyr::select(period, regressor, r) %>%
+  pivot_wider(names_from = period, values_from = r, names_prefix = "r_") %>%
+  mutate(change = `r_2022-2025` - `r_2018-2021`)
+ft(sub_wide, digits = 3, name = "subperiod_correlations")
+
+ggplot(sub_cor, aes(regressor, r, fill = period)) +
+  geom_col(position = position_dodge(0.9)) +
+  geom_errorbar(aes(ymin = ci_low, ymax = ci_high), position = position_dodge(0.9), width = 0.25) +
+  geom_hline(yintercept = 0) +
+  scale_fill_manual(values = c("2018-2021" = "steelblue", "2022-2025" = "darkorange")) +
+  labs(title = "Correlation with BTC_Return by sub-period (95% confidence intervals)",
+       x = NULL, y = "Pearson r", fill = NULL) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1), legend.position = "bottom")
+
+# Scatter plots by sub-period
+dat_p %>%
+  pivot_longer(all_of(x_vars), names_to = "regressor", values_to = "x") %>%
+  mutate(regressor = factor(regressor, levels = x_vars)) %>%
+  ggplot(aes(x, BTC_Return, colour = period)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  scale_colour_manual(values = c("2018-2021" = "steelblue", "2022-2025" = "darkorange")) +
+  facet_wrap(~ regressor, ncol = 4, scales = "free_x") +
+  labs(title = "BTC_Return against each regressor, by sub-period", x = NULL, colour = NULL) +
+  theme(legend.position = "bottom")
+```
+
+The relationship with `SP500` is the one that changes most. The 24-month rolling correlation is about zero (−0.08) at the end of 2019, climbs to 0.35 at the end of 2020 and 0.54 at the end of 2021, and then stays between 0.48 and 0.56 through 2025 (peak 0.61 in June 2023). Correspondingly, the correlation is 0.28 in 2018 to 2021 (95% interval −0.00 to 0.52) and 0.55 in 2022 to 2025 (0.32 to 0.72): Bitcoin has co-moved more closely with US equities since 2020.
+
+The other regressors show sign changes between the sub-periods (`US_10Y_Yield` from 0.11 to −0.18, `VIX` from 0.04 to −0.24, `WTI` from 0.19 to −0.02), but with only 48 months in each sub-period the 95% intervals are wide (about ±0.28) and nearly all include zero, so these shifts cannot be separated from sampling noise. Bitcoin's own volatility also fell between the periods (standard deviation 0.22 versus 0.16), which points to robust standard errors.
+
+The evidence supports allowing for regime dependence in the `SP500` relationship, for example an interaction between `SP500` and a post-2020 (or 2022 onward) indicator. For the other regressors there is not enough evidence to justify extra terms. Whether the interaction is needed should be tested formally in the modeling stage (for example with a significance test of the interaction or a Chow type test) rather than judged from this exploratory analysis.
+
+## Multivariate analysis
+
+### Correlations among the regressors
+
+```{r eda-correlation_matrix, fig.height=7, fig.width=7.5}
+cor_mat <- cor(dat[x_vars])
+
+cor_mat %>% round(2) %>% as.data.frame() %>% rownames_to_column("variable") %>% ft(digits = 2, name = "correlation_matrix_regressors")
+
+corrplot(cor_mat, method = "color", type = "upper", diag = FALSE,
+         addCoef.col = "black", number.cex = 0.7,
+         tl.col = "black", tl.srt = 45, col = COL2("RdBu", 200))
+
+# Ten most correlated pairs of regressors
+pairs_tbl <- as.data.frame(as.table(cor_mat)) %>%
+  rename(var1 = Var1, var2 = Var2, r = Freq) %>%
+  filter(as.integer(var1) < as.integer(var2)) %>%
+  arrange(desc(abs(r))) %>%
+  slice_head(n = 10)
+ft(pairs_tbl, digits = 3, name = "top_correlated_pairs")
+```
+
+```{r eda-pairs_plot, fig.height=12, fig.width=12}
+ggpairs(dat[x_vars],
+        lower = list(continuous = wrap("smooth", alpha = 0.4, size = 0.6)),
+        upper = list(continuous = wrap("cor", size = 3)),
+        diag  = list(continuous = wrap("densityDiag"))) +
+  theme(axis.text = element_text(size = 6), strip.text = element_text(size = 7))
+```
+
+```{r eda-pca_optional, fig.height=4.5}
+# Optional supporting view: principal components of the standardized regressors
+pca <- prcomp(dat[x_vars], scale. = TRUE)
+pve <- tibble(PC = factor(paste0("PC", seq_along(pca$sdev)), levels = paste0("PC", seq_along(pca$sdev))),
+              eigenvalue = pca$sdev^2) %>%
+  mutate(prop = eigenvalue / sum(eigenvalue), cumulative = cumsum(prop))
+ft(pve, digits = 3, name = "pca_variance")
+
+ggplot(pve, aes(PC, prop)) +
+  geom_col(fill = "steelblue") +
+  geom_line(aes(y = cumulative, group = 1), colour = "darkred") +
+  geom_point(aes(y = cumulative), colour = "darkred") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Scree plot (bars) and cumulative variance explained (line)", x = NULL, y = "Share of variance")
+
+pca$rotation[, 1:3] %>% as.data.frame() %>% rownames_to_column("variable") %>% ft(digits = 3, name = "pca_loadings")
+```
+
+### Preliminary check for multicollinearity
+
+For regressor $j$, the variance inflation factor is
+
+$$
+\text{VIF}_j = \frac{1}{1-R_j^2},
+$$
+
+where $R_j^2$ comes from regressing $x_j$ on the other regressors. The regression below is fitted **only** to obtain VIFs, not to choose a model.
+
+```{r eda-preliminary_vif, fig.height=4}
+vif_fit <- lm(reformulate(x_vars, response = y_var), data = dat)
+vif_vals <- car::vif(vif_fit)
+
+vif_tbl <- tibble(regressor = names(vif_vals), VIF = as.numeric(vif_vals)) %>%
+  mutate(tolerance = 1 / VIF) %>%
+  arrange(desc(VIF))
+ft(vif_tbl, digits = 3, name = "vif")
+
+# Condition number of the correlation matrix of the regressors
+ev <- eigen(cor_mat)$values
+cat("Condition number (sqrt of largest / smallest eigenvalue):", round(sqrt(max(ev) / min(ev)), 2), "\n")
+
+ggplot(vif_tbl, aes(fct_reorder(regressor, VIF), VIF)) +
+  geom_col(fill = "steelblue") +
+  geom_hline(yintercept = c(5, 10), linetype = "dashed", colour = c("orange", "red")) +
+  coord_flip() +
+  labs(title = "Variance inflation factors", subtitle = "Dashed lines: 5 and 10 (rules of thumb)",
+       x = NULL, y = "VIF")
+```
+
+The regressors are only moderately correlated. The strongest pairs are `SP500` and `USD_Index` (−0.55: equities tend to fall when the dollar strengthens) and `USD_Index` and `USD_PHP` (0.51: a stronger dollar goes with a weaker peso), followed by `SP500` and `WTI` (0.41), `SP500` and `USD_PHP` (−0.31), `VIX` and `Philippine_M3_growth` (0.31) and `VIX` and `WTI` (−0.30). Only two pairs exceed 0.5 in absolute value and none exceeds 0.7.
+
+The variance inflation factors are all below 2: the highest is `USD_Index` (1.97), followed by `SP500` (1.73) and `WTI` (1.71), and the lowest is `BSP_RRP_Rate` (1.09). The condition number of the correlation matrix is 2.7, far from the usual warning levels (VIF above 5 or 10, condition number above about 30). The principal components agree: the first explains only 28% of the variance (an axis contrasting dollar strength with equities and oil) and five components are needed to reach 84%, so the regressors carry largely distinct information.
+
+Multicollinearity is therefore not a concern for the planned model. A large VIF would be a warning and not an automatic reason to drop a variable, and no value here calls for that. The dollar block (`USD_Index`, `USD_PHP` and `SP500`) is the one to watch if coefficient signs look unstable.
+
+## Summary of findings and handoff notes
+
+**Data quality and units.** The cleaned file has 96 complete monthly observations from January 2018 to December 2025 with regular one-month spacing, and every variable reconciles with the levels file. The variables are in mixed units (decimal log returns, percentage point changes, an index level and a percent growth rate), so coefficients will not be directly comparable and economic significance should be judged with one standard deviation moves.
+
+**Dependent variable.** `BTC_Return` is highly volatile (about 66% annualized, four times the S&P 500) but statistically well behaved: it is nearly symmetric with kurtosis of 3.05, passes the normality tests, and shows no autocorrelation and no sign of volatility clustering. Its volatility has declined over time (monthly standard deviation 0.22 in 2018 to 2021 versus 0.16 in 2022 to 2025).
+
+**Regressors.** `VIX`, `WTI`, `Philippine_M3_growth` and `BSP_RRP_Rate` are clearly non-normal. `Philippine_M3_growth`, `VIX` and `BSP_RRP_Rate` are persistent, and `BSP_RRP_Rate` is also sparse (68% zeros, 31 non-zero months in a few clusters). Extreme months are few (eight variable-months beyond three standard deviations) and concentrated in March 2020 and 2022; they were kept as genuine market events.
+
+**Relationships.** `SP500` is the only regressor with a clear positive association with `BTC_Return` (r = 0.39), and it strengthened after 2020 (rolling correlation of about 0.5 since 2021). The other regressors have weak associations (absolute correlation of at most 0.19, none significant at 5%), with intuitive signs for `USD_Index`, `USD_PHP` and `BSP_RRP_Rate` and a `WTI` relationship that depends on a few months. The regressors are not collinear: the largest VIF is 1.97 and only two pairs have an absolute correlation above 0.5.
+
+## Reproducibility
+
+```{r eda-outputs_saved}
+# Figures (PNG) and tables (CSV) saved by this run. The knitted HTML report itself is
+# written to the same folder when knitting finishes.
+cat("Output folder:", OUT_DIR, "\n")
+list.files(OUT_DIR, recursive = TRUE)
+```
+
+```{r eda-session_info}
+sessionInfo()
+```
+
+# Multiple Linear Regression and Diagnostics
+
+```{r master-mlr-figure-path, include=FALSE}
+# EDA uses its own figure export folder. Use a distinct figure path for the
+# remainder of this combined report so MLR charts do not go to EDA's folder.
+knitr::opts_chunk$set(fig.path = "BTC_Master_Report_files/figure-html/")
+```
+
+```{r mlr-setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8.5, fig.height = 5,
+                      fig.align = "center", dpi = 120)
+needed <- c("knitr", "rmarkdown", "ggplot2", "lmtest", "sandwich", "car")
+missing_packages <- needed[!vapply(needed, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing_packages)) {
+  stop("Install required packages first: install.packages(c(",
+       paste(sprintf("'%s'", missing_packages), collapse = ", "), "))")
+}
+find_project_root <- function(start = getwd(), max_up = 5) {
+  d <- normalizePath(start, winslash = "/", mustWork = TRUE)
+  for (i in 0:max_up) {
+    if (file.exists(file.path(d, "data", "processed", "BTC_regression_ready.csv"))) return(d)
+    parent <- dirname(d)
+    if (parent == d) break
+    d <- parent
+  }
+  stop("Cannot find project root containing data/processed/BTC_regression_ready.csv.",
+       " Open the .Rproj and knit a report inside reports/.", call. = FALSE)
+}
+
+PROJ_ROOT <- find_project_root()
+MLR_OUT_DIR <- file.path(PROJ_ROOT, "outputs", "mlr")
+MLR_TABLE_DIR <- file.path(MLR_OUT_DIR, "tables")
+MLR_FIG_DIR <- file.path(MLR_OUT_DIR, "figures")
+dir.create(MLR_TABLE_DIR, recursive = TRUE, showWarnings = FALSE)
+dir.create(MLR_FIG_DIR, recursive = TRUE, showWarnings = FALSE)
+
+input_file <- file.path(PROJ_ROOT, "data", "processed", "BTC_regression_ready.csv")
+if (!file.exists(input_file)) stop("Missing input: ", input_file,
+                                   ". Knit BTC_MLR_Report.Rmd from reports/ in the project.")
+btc <- utils::read.csv(input_file, stringsAsFactors = FALSE)
+btc$date <- as.Date(btc$date)
+global_vars <- c("SP500", "USD_Index", "US_10Y_Yield", "VIX", "WTI")
+domestic_vars <- c("Philippine_M3_growth", "BSP_RRP_Rate", "USD_PHP")
+full_vars <- c(global_vars, domestic_vars)
+required_cols <- c("date", "BTC_Return", full_vars)
+if (!all(required_cols %in% names(btc))) {
+  stop("Missing columns: ", paste(setdiff(required_cols, names(btc)), collapse = ", "))
+}
+if (anyNA(btc[required_cols])) stop("Missing values detected; establish a shared complete-case sample before comparing models.")
+if (any(!vapply(btc[c("BTC_Return", full_vars)], is.numeric, logical(1)))) stop("At least one regression variable is not numeric.")
+if (anyDuplicated(btc$date)) stop("Duplicate months found.")
+if (anyNA(btc$date)) stop("Unparseable date found.")
+btc <- btc[order(btc$date), , drop = FALSE]
+stopifnot(nrow(btc) > length(full_vars) + 10)
+
+
+# Heteroskedasticity-and-autocorrelation-consistent SE, Bartlett weights, 3 lags.
+# No automatic prewhitening; small-sample degrees-of-freedom adjustment.
+hac_vcov <- function(model) sandwich::NeweyWest(model, lag = 3, prewhite = FALSE,
+                                                adjust = TRUE)
+hc3_vcov <- function(model) sandwich::vcovHC(model, type = "HC3")
+format_p <- function(p) ifelse(is.na(p), "NA", ifelse(p < 0.001, "<0.001", sprintf("%.3f", p)))
+coef_table <- function(model) {
+  s <- summary(model)$coefficients
+  ci <- stats::confint(model, level = 0.95)
+  data.frame(
+    Predictor = rownames(s),
+    Estimate = round(s[, "Estimate"], 4),
+    OLS_SE = round(s[, "Std. Error"], 4),
+    t_statistic = round(s[, "t value"], 3),
+    p_value = format_p(s[, "Pr(>|t|)"]),
+    CI95_lower = round(ci[, 1], 4),
+    CI95_upper = round(ci[, 2], 4),
+    row.names = NULL, check.names = FALSE
+  )
+}
+robust_coef_table <- function(model) {
+  ordinary <- summary(model)$coefficients
+  hc3 <- lmtest::coeftest(model, vcov. = hc3_vcov(model))
+  hac <- lmtest::coeftest(model, vcov. = hac_vcov(model))
+  data.frame(
+    Predictor = rownames(ordinary),
+    Estimate = round(ordinary[, "Estimate"], 4),
+    OLS_SE = round(ordinary[, "Std. Error"], 4),
+    OLS_p = format_p(ordinary[, "Pr(>|t|)"]),
+    HC3_SE = round(hc3[, "Std. Error"], 4),
+    HC3_p = format_p(hc3[, "Pr(>|t|)"]),
+    HAC3_SE = round(hac[, "Std. Error"], 4),
+    HAC3_p = format_p(hac[, "Pr(>|t|)"]),
+    row.names = NULL, check.names = FALSE
+  )
+}
+fit_table <- function(model, name) {
+  f <- summary(model)$fstatistic
+  data.frame(Model = name, N = stats::nobs(model),
+             R2 = round(summary(model)$r.squared, 3),
+             Adjusted_R2 = round(summary(model)$adj.r.squared, 3),
+             Residual_SE = round(summary(model)$sigma, 4),
+             F_statistic = round(unname(f[1]), 3),
+             F_p = format_p(stats::pf(f[1], f[2], f[3], lower.tail = FALSE)),
+             AIC = round(stats::AIC(model), 2),
+             BIC = round(stats::BIC(model), 2))
+}
+```
+
+## Research question and approach
+
+**Research question.** How are global financial conditions and Philippine monetary and exchange-rate indicators associated with Bitcoin's monthly log returns from January 2018 to December 2025?
+
+We use `r nrow(btc)` monthly observations (`r format(min(btc$date), '%b %Y')` to `r format(max(btc$date), '%b %Y')`), with no missing values in the regression variables. The analysis focuses on **contemporaneous associations** estimated through multiple linear regression (MLR). It does not establish causality or assess out-of-sample forecasting performance. Because the observations are monthly, we also check whether regression errors are correlated over time.
+
+| Dataset code | Definition / units |
+|:--|:--|
+| `BTC_Return` | Bitcoin monthly log return (decimal) |
+| `SP500` | S&P 500 monthly log return (decimal) |
+| `USD_Index` | **FRED DTWEXBGS nominal broad U.S. dollar index** monthly log return (decimal; **not DXY**) |
+| `US_10Y_Yield` | Month-end U.S. 10-year yield change (percentage points) |
+| `VIX` | Monthly average VIX level (index points) |
+| `WTI` | WTI crude oil monthly log return (decimal) |
+| `Philippine_M3_growth` | BSP M3 **year-on-year** growth rate (percent; 1 unit = 1 percentage point), pending master-dictionary confirmation |
+| `BSP_RRP_Rate` | Month-end BSP RRP target rate change (percentage points) |
+| `USD_PHP` | USD/PHP monthly log change (decimal; positive = peso depreciation) |
+
+We first estimate a **global baseline** with S&P 500 returns, broad U.S. dollar index returns, U.S. 10-year yield changes, VIX, and WTI returns. The **expanded model** adds Philippine M3 growth, BSP RRP rate changes, and USD/PHP changes. This comparison helps us assess whether domestic indicators add explanatory value beyond global market conditions. The specifications reflect the research question rather than selection based only on p-values.
+
+## Multiple linear regression results
+
+### Model specifications
+
+The global baseline is:
+
+\[
+BTC\_Return_t = \beta_0 + \beta_1 SP500_t + \beta_2 USD\_Index_t
++ \beta_3 US\_10Y\_Yield_t + \beta_4 VIX_t + \beta_5 WTI_t + \varepsilon_t.
+\]
+
+The expanded model also includes the three Philippine indicators:
+
+\[
+\begin{aligned}
+BTC\_Return_t &= \beta_0 + \beta_1 SP500_t + \beta_2 USD\_Index_t
++ \beta_3 US\_10Y\_Yield_t + \beta_4 VIX_t + \beta_5 WTI_t\\
+&\quad + \beta_6 Philippine\_M3\_growth_t
++ \beta_7 BSP\_RRP\_Rate_t + \beta_8 USD\_PHP_t + \varepsilon_t.
+\end{aligned}
+\]
+
+In both equations, each slope measures an association with BTC returns **holding the other included variables constant**.
+
+### Model estimation
+
+We estimated both specifications by ordinary least squares using `lm()`. The regression summaries below report the coefficients, standard errors, individual tests, and overall model fit.
+
+```{r mlr-estimate-ols-models}
+formula_global <- BTC_Return ~ SP500 + USD_Index + US_10Y_Yield + VIX + WTI
+formula_full <- BTC_Return ~ SP500 + USD_Index + US_10Y_Yield + VIX + WTI +
+  Philippine_M3_growth + BSP_RRP_Rate + USD_PHP
+
+model_global <- lm(formula_global, data = btc)
+model_full <- lm(formula_full, data = btc)
+
+summary(model_global)
+summary(model_full)
+```
+
+The coefficient estimates represent conditional associations, so their signs and magnitudes should be considered together with their uncertainty.
+
+### Coefficient estimates and statistical significance
+
+We test whether each coefficient differs from zero, using two-sided t-tests ($H_0: \beta_j=0$). The 95% confidence intervals provide additional context on the range of plausible coefficient values.
+
+```{r mlr-model-coefficient-tables}
+coef_global <- coef_table(model_global)
+coef_full <- coef_table(model_full)
+knitr::kable(coef_global, caption = "Global baseline: conventional OLS estimates and inference")
+knitr::kable(coef_full, caption = "Expanded model: conventional OLS estimates and inference")
+utils::write.csv(coef_global,
+                 file.path(MLR_TABLE_DIR, "baseline_coefficients.csv"), row.names = FALSE)
+utils::write.csv(coef_full,
+                 file.path(MLR_TABLE_DIR, "expanded_coefficients.csv"), row.names = FALSE)
+```
+
+In the expanded model, the estimated S&P 500 coefficient is `r sprintf("%.3f", unname(coef(model_full)["SP500"]))` (OLS p-value: `r format_p(summary(model_full)$coefficients["SP500", "Pr(>|t|)"])`). Holding the other predictors constant, a one-percentage-point increase in the S&P 500 monthly log return is associated with an approximately `r sprintf("%.2f", unname(coef(model_full)["SP500"]))`-percentage-point increase in BTC monthly log return.
+
+We also consider the estimates and confidence intervals for the other indicators. A non-significant p-value does not establish that an association is exactly zero.
+
+```{r mlr-confidence-intervals}
+# Show the expanded model's 95% OLS confidence intervals.
+expanded_intervals <- data.frame(
+  Predictor = rownames(stats::confint(model_full)),
+  stats::confint(model_full, level = 0.95),
+  row.names = NULL, check.names = FALSE
+)
+colnames(expanded_intervals)[2:3] <- c("Lower_95pct", "Upper_95pct")
+knitr::kable(expanded_intervals, digits = 4,
+             caption = "95% conventional OLS confidence intervals: expanded model")
+utils::write.csv(expanded_intervals,
+                 file.path(MLR_TABLE_DIR, "expanded_confidence_intervals.csv"),
+                 row.names = FALSE)
+```
+
+### Economic significance: one-standard-deviation changes
+
+To compare predictors measured in different units, we estimated the change in fitted BTC returns associated with a one-standard-deviation increase in each predictor, holding the other variables constant. We use standard deviations from the same regression sample.
+
+\[
+\Delta\widehat{BTC\_Return}_{j} = \widehat{\beta}_j \times SD(X_j).
+\]
+
+The table reports fitted BTC log-return changes in both decimal form and percentage points. This comparison describes model-implied magnitudes, not causal effects.
+
+```{r mlr-one-sd-economic-effects}
+var_sds <- vapply(btc[full_vars], stats::sd, numeric(1))
+one_sd_effects <- data.frame(
+  Predictor = full_vars,
+  Sample_SD = unname(var_sds[full_vars]),
+  Estimated_coefficient = unname(stats::coef(model_full)[full_vars]),
+  Effect_BTC_log_return_decimal = unname(var_sds[full_vars] * stats::coef(model_full)[full_vars]),
+  Effect_BTC_log_return_percentage_points = unname(100 * var_sds[full_vars] * stats::coef(model_full)[full_vars]),
+  row.names = NULL
+)
+knitr::kable(one_sd_effects, digits = 4,
+             caption = "One-standard-deviation economic effects: expanded OLS model")
+utils::write.csv(one_sd_effects,
+                 file.path(MLR_TABLE_DIR, "one_sd_economic_effects.csv"),
+                 row.names = FALSE)
+```
+
+The one-standard-deviation results help us see which estimated relationships are relatively large in the sample. We still interpret these magnitudes alongside the coefficient uncertainty, particularly for predictors with weak statistical evidence.
+
+### Economic significance: illustrative changes
+
+We also calculated fitted BTC-return changes for practical movements in each indicator, such as a one-percentage-point S&P 500 return increase or a five-point VIX increase. These examples make the coefficient units easier to interpret.
+
+```{r mlr-economic-magnitude-table}
+examples <- data.frame(
+  Predictor = full_vars,
+  Illustrative_change = c(
+    "S&P 500 monthly log return +1 percentage point",
+    "Broad USD index log return +1 percentage point",
+    "U.S. 10Y yield change +0.25 percentage points",
+    "VIX level +5 index points",
+    "WTI monthly log return +10 percentage points",
+    "Philippine M3 YoY growth +1 percentage point",
+    "BSP RRP rate change +0.25 percentage points",
+    "USD/PHP monthly log change +1 percentage point"
+  ),
+  Delta = c(0.01, 0.01, 0.25, 5, 0.10, 1, 0.25, 0.01),
+  stringsAsFactors = FALSE
+)
+examples$BTC_Log_Return_Change_PP <- round(
+  100 * unname(stats::coef(model_full)[examples$Predictor]) * examples$Delta, 2
+)
+knitr::kable(
+  examples[c("Illustrative_change", "BTC_Log_Return_Change_PP")],
+  col.names = c("Illustrative predictor change", "Fitted BTC log-return change (percentage points)"),
+  caption = "Illustrative economic magnitudes, expanded OLS model"
+)
+utils::write.csv(examples, file.path(MLR_TABLE_DIR, "economic_magnitudes.csv"), row.names = FALSE)
+```
+
+These are fitted changes with other included variables held constant, not forecasts. Note that M3 growth and interest-rate changes are measured in percentage points, while log returns are stored as decimals.
+
+### Model fit and overall significance
+
+```{r mlr-model-fit-table}
+models_summary <- rbind(
+  fit_table(model_global, "Global baseline (5 regressors)"),
+  fit_table(model_full, "Expanded (8 regressors)")
+)
+knitr::kable(models_summary, caption = "OLS model performance using the same sample")
+utils::write.csv(models_summary,
+                 file.path(MLR_TABLE_DIR, "model_fit_comparison.csv"),
+                 row.names = FALSE)
+```
+
+The global baseline explains `r sprintf("%.1f", 100 * summary(model_global)$r.squared)`% of variation in BTC monthly log returns, compared with `r sprintf("%.1f", 100 * summary(model_full)$r.squared)`% for the expanded model. Adjusted R² is `r sprintf("%.3f", summary(model_global)$adj.r.squared)` for the baseline and `r sprintf("%.3f", summary(model_full)$adj.r.squared)` for the expanded model. The overall F-tests assess whether the regressors are jointly associated with BTC returns.
+
+### Additional contribution of Philippine variables
+
+We compared the nested models using a partial F-test of whether the three Philippine coefficients are jointly zero, after accounting for the global indicators:
+
+\[
+H_0:\quad \beta_{M3}=\beta_{RRP}=\beta_{USD/PHP}=0.
+\]
+
+```{r mlr-domestic-incremental-f-test}
+nested_models <- stats::anova(model_global, model_full)
+knitr::kable(as.data.frame(nested_models), digits = 4,
+             caption = "Partial F-test: global baseline versus expanded model")
+utils::write.csv(as.data.frame(nested_models),
+                 file.path(MLR_TABLE_DIR, "nested_model_test.csv"), row.names = TRUE)
+nested_p <- nested_models[["Pr(>F)"]][2]
+```
+
+The partial F-test gives a p-value of `r format_p(nested_p)`. At the 5% level, the result indicates `r if (nested_p < 0.05) "evidence of an additional joint association from the Philippine variables" else "no statistically significant additional joint association from the Philippine variables"` in this sample.
+
+The baseline has `r if (stats::AIC(model_global) < stats::AIC(model_full)) "a lower" else "a higher"` AIC. The expanded model adds some explanatory power in terms of R², but we also consider adjusted R² and the added complexity. Both models remain relevant: the baseline summarizes global financial associations, while the expanded model directly addresses the Philippine part of the research question.
+
+## Regression diagnostics and robustness
+
+### Residual patterns
+
+We examined residuals from the expanded model using residual-versus-fitted, normal Q-Q, and scale-location plots. These plots help identify curvature, uneven residual spread, and unusual observations that could affect inference.
+
+```{r mlr-residual-plots, fig.height=5.5, fig.width=10}
+diag_df <- data.frame(
+  date = btc$date, fitted = stats::fitted(model_full),
+  residual = stats::residuals(model_full),
+  standardized = stats::rstandard(model_full)
+)
+p_fit <- ggplot2::ggplot(diag_df, ggplot2::aes(x = fitted, y = residual)) +
+  ggplot2::geom_point(alpha = .70) +
+  ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#3B5FA7") +
+  ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
+  ggplot2::labs(title = "Residuals versus fitted values", x = "Fitted BTC log return", y = "Residual") +
+  ggplot2::theme_minimal()
+p_qq <- ggplot2::ggplot(diag_df, ggplot2::aes(sample = standardized)) +
+  ggplot2::stat_qq(alpha = .7) + ggplot2::stat_qq_line(color = "#3B5FA7") +
+  ggplot2::labs(title = "Normal Q-Q plot of standardized residuals", x = "Theoretical quantiles", y = "Sample quantiles") +
+  ggplot2::theme_minimal()
+p_scale <- ggplot2::ggplot(diag_df,
+  ggplot2::aes(x = fitted, y = sqrt(abs(standardized)))) +
+  ggplot2::geom_point(alpha = .7) +
+  ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#3B5FA7") +
+  ggplot2::labs(title = "Scale-location plot",
+                x = "Fitted BTC log return",
+                y = "Square root of absolute standardized residual") +
+  ggplot2::theme_minimal()
+print(p_fit)
+print(p_qq)
+print(p_scale)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "residuals_vs_fitted.png"), p_fit, width = 8, height = 5)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "residuals_qq.png"), p_qq, width = 8, height = 5)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "scale_location.png"), p_scale, width = 8, height = 5)
+```
+
+The residual-versus-fitted plot provides a visual check for nonlinearity or changing variance. The Q-Q plot shows how closely the residual distribution follows a normal reference, especially at the tails. The scale-location plot highlights possible changes in residual spread across fitted values. We assess these observations together with the formal tests below.
+
+### Formal diagnostic tests
+
+```{r mlr-formal-tests}
+bp_test <- lmtest::bptest(model_full, studentize = TRUE)  # Koenker studentized BP
+bg_test <- lmtest::bgtest(model_full, order = 3, type = "Chisq")
+dw_stat <- sum(diff(stats::residuals(model_full))^2) /
+           sum(stats::residuals(model_full)^2)
+shapiro_test <- stats::shapiro.test(stats::residuals(model_full))
+reset_test <- lmtest::resettest(model_full, power = 2, type = "fitted")
+formal_diag <- data.frame(
+  Test = c("Koenker-Breusch-Pagan (heteroskedasticity)",
+           "Breusch-Godfrey LM (serial correlation through lag 3)",
+           "Shapiro-Wilk (residual normality)",
+           "Ramsey RESET (quadratic fitted-value augmentation)"),
+  Statistic = round(c(unname(bp_test$statistic), unname(bg_test$statistic),
+                      unname(shapiro_test$statistic), unname(reset_test$statistic)), 4),
+  p_value = c(bp_test$p.value, bg_test$p.value, shapiro_test$p.value,
+              reset_test$p.value)
+)
+formal_diag$Interpretation_at_5pct <- ifelse(formal_diag$p_value < 0.05,
+                                           "Reject null", "Do not reject null")
+formal_diag$p_value <- round(formal_diag$p_value, 4)
+knitr::kable(formal_diag, caption = "Expanded-model residual diagnostics")
+knitr::kable(data.frame(Statistic = "Durbin-Watson", Value = round(dw_stat, 3)),
+             caption = "Durbin-Watson descriptive statistic (approximately 2 indicates little first-order residual correlation)")
+utils::write.csv(formal_diag, file.path(MLR_TABLE_DIR, "diagnostic_tests.csv"), row.names = FALSE)
+```
+
+The four tests examine different aspects of the fitted model: heteroskedasticity (Breusch-Pagan), serial correlation through three lags (Breusch-Godfrey), residual normality (Shapiro-Wilk), and an additional fitted-value pattern (Ramsey RESET). We treat p-values above 0.05 as **insufficient evidence to reject the corresponding null**, not proof that the assumption always holds.
+
+For the expanded model, the p-values are BP = `r format_p(bp_test$p.value)`, BG(3) = `r format_p(bg_test$p.value)`, Shapiro-Wilk = `r format_p(shapiro_test$p.value)`, and RESET = `r format_p(reset_test$p.value)`. The available tests `r if (all(c(bp_test$p.value, bg_test$p.value, shapiro_test$p.value, reset_test$p.value) >= 0.05)) "do not indicate a statistically significant problem at the 5% level" else "identify at least one result below the 5% threshold"`. These results do not rule out omitted variables or other sources of bias.
+
+We also ran the main diagnostic tests on the global baseline, since it remains a comparison model.
+
+```{r mlr-baseline-diagnostic-crosscheck}
+global_diagnostics <- data.frame(
+  Model = c("Global baseline", "Expanded model"),
+  BP_p = c(lmtest::bptest(model_global, studentize = TRUE)$p.value, bp_test$p.value),
+  BG3_p = c(lmtest::bgtest(model_global, order = 3, type = "Chisq")$p.value, bg_test$p.value),
+  Shapiro_p = c(stats::shapiro.test(stats::residuals(model_global))$p.value, shapiro_test$p.value),
+  RESET_p = c(lmtest::resettest(model_global, power = 2, type = "fitted")$p.value, reset_test$p.value)
+)
+knitr::kable(global_diagnostics, digits = 4,
+             caption = "Cross-check of main residual tests on both candidate models")
+utils::write.csv(global_diagnostics, file.path(MLR_TABLE_DIR, "both_model_diagnostics.csv"), row.names = FALSE)
+```
+
+#### Multicollinearity
+
+```{r mlr-vif-analysis}
+vif_values <- car::vif(model_full)
+vif_table <- data.frame(Predictor = names(vif_values), VIF = round(as.numeric(vif_values), 3))
+knitr::kable(vif_table, caption = "Variance inflation factors for eight predictors")
+utils::write.csv(vif_table, file.path(MLR_TABLE_DIR, "vif.csv"), row.names = FALSE)
+```
+
+The maximum VIF is `r sprintf('%.2f', max(vif_values))` for `r names(which.max(vif_values))`. This `r ifelse(max(vif_values) < 5, 'does not indicate serious predictor collinearity using a VIF threshold of 5', 'suggests that some predictor collinearity needs closer examination')`. The VIF results are a screening check and are not used on their own to remove variables.
+
+#### Influential observations
+
+```{r mlr-influence-analysis}
+influence <- data.frame(
+  date = format(btc$date, "%Y-%m"),
+  cooks_d = stats::cooks.distance(model_full),
+  leverage = stats::hatvalues(model_full),
+  studentized_residual = stats::rstudent(model_full)
+)
+cook_cutoff <- 4 / nrow(btc)
+influential <- influence[influence$cooks_d > cook_cutoff, , drop = FALSE]
+influential <- influential[order(-influential$cooks_d), , drop = FALSE]
+knitr::kable(head(influential, 10), digits = 3,
+             caption = paste0("Cook's distance screen: observations above 4/n = ", round(cook_cutoff, 3)))
+utils::write.csv(influence, file.path(MLR_TABLE_DIR, "influence_all_months.csv"), row.names = FALSE)
+utils::write.csv(influential, file.path(MLR_TABLE_DIR, "influential_months.csv"), row.names = FALSE)
+```
+
+```{r mlr-influence-plot}
+p_cook <- ggplot2::ggplot(influence,
+                          ggplot2::aes(x = as.Date(paste0(date, "-01")), y = cooks_d)) +
+  ggplot2::geom_col(fill = "#5579AD") +
+  ggplot2::geom_hline(yintercept = cook_cutoff, linetype = "dashed", color = "#A54D59") +
+  ggplot2::labs(title = "Cook's distance by month (expanded OLS model)",
+                x = "Observation month", y = "Cook's distance") +
+  ggplot2::theme_minimal()
+print(p_cook)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "cooks_distance.png"), p_cook, width = 8.5, height = 4.8)
+```
+
+`r nrow(influential)` months exceed the Cook's distance screening value of **4/n**. The highest value occurs in `r influence$date[which.max(influence$cooks_d)]` (`r sprintf('%.3f', max(influence$cooks_d))`). We retained these observations in the main regression because unusually large market movements can be genuine events. Their possible influence is examined separately below.
+
+### HC3 robust standard errors
+
+We also estimated heteroskedasticity-robust (HC3) standard errors. This leaves the OLS coefficients unchanged but gives an alternative assessment of their statistical uncertainty.
+
+```{r mlr-hc3-inference}
+lmtest::coeftest(model_full, vcov. = sandwich::vcovHC(model_full, type = "HC3"))
+```
+
+```{r mlr-robustness-se}
+robust_table <- robust_coef_table(model_full)
+knitr::kable(robust_table,
+             caption = "Expanded model: conventional OLS, HC3, and supplementary HAC(3) inference")
+utils::write.csv(robust_table, file.path(MLR_TABLE_DIR, "robust_coefficients.csv"),
+                 row.names = FALSE)
+```
+
+The HC3 results are reported alongside conventional OLS standard errors. Differences in significance should be considered when interpreting the estimates; robust standard errors do not address possible omitted-variable bias or reverse causality.
+
+### Supplementary check: Newey-West standard errors
+
+Because the observations are monthly, we additionally calculated Newey-West HAC standard errors allowing heteroskedasticity and short-run error correlation. We used three lags as a sensitivity setting. This is an inference check; the underlying model remains OLS MLR.
+
+```{r mlr-hac-inference}
+lmtest::coeftest(model_full, vcov. = hac_vcov(model_full))
+```
+
+We also checked the three Philippine coefficients jointly using the HAC covariance estimate.
+
+```{r mlr-robust-domestic-test}
+hac_joint <- car::linearHypothesis(
+  model_full,
+  c("Philippine_M3_growth = 0", "BSP_RRP_Rate = 0", "USD_PHP = 0"),
+  vcov. = hac_vcov(model_full), test = "F")
+knitr::kable(as.data.frame(hac_joint), digits = 4,
+             caption = "Supplementary HAC(3) Wald F-test for the Philippine indicators")
+hac_domestic_p <- hac_joint[["Pr(>F)"]][2]
+```
+
+The supplementary HAC joint-test p-value is `r format_p(hac_domestic_p)`. We compare this with the conventional partial F-test without using either test alone to determine the final model.
+
+### Sensitivity to an influential month
+
+To assess whether one observation is driving the results, we re-estimated the expanded model after temporarily excluding the month with the highest Cook's distance. The original 96-month model remains our main estimate.
+
+```{r mlr-single-influence-sensitivity}
+worst_idx <- which.max(influence$cooks_d)
+worst_month <- influence$date[worst_idx]
+sensitivity_data <- btc[-worst_idx, , drop = FALSE]
+model_omit_one <- stats::lm(formula_full, data = sensitivity_data)
+sensitivity_coef <- data.frame(
+  Predictor = names(stats::coef(model_full)),
+  Full_96_months = round(unname(stats::coef(model_full)), 4),
+  Omit_highest_Cook_month = round(unname(stats::coef(model_omit_one)), 4)
+)
+knitr::kable(sensitivity_coef,
+             caption = paste0("Influence sensitivity: all months versus omitting ", worst_month, " only for a check"))
+utils::write.csv(sensitivity_coef, file.path(MLR_TABLE_DIR, "single_month_sensitivity.csv"), row.names = FALSE)
+```
+
+The S&P 500 coefficient changes from `r sprintf('%.3f', coef(model_full)['SP500'])` to `r sprintf('%.3f', coef(model_omit_one)['SP500'])` when `r worst_month` is excluded. Its estimated sign `r ifelse(sign(coef(model_full)['SP500']) == sign(coef(model_omit_one)['SP500']), 'remains the same', 'changes')`. This helps us assess how sensitive the result is to a single unusual month; it does not justify removing that observation from the main analysis.
+
+## Model choice and overall findings
+
+We retained both specifications for interpretation. The **global baseline** offers the simpler comparison, while the **expanded model** shows whether Philippine monetary and exchange-rate indicators contribute beyond the five global variables. The partial F-test p-value is `r format_p(nested_p)`, and the expanded model has R² = `r sprintf('%.3f', summary(model_full)$r.squared)` and adjusted R² = `r sprintf('%.3f', summary(model_full)$adj.r.squared)`. Given the modest overall explanatory power, we avoid treating either model as a reliable BTC forecasting tool.
+
+The diagnostic tests, VIF results, robust standard errors, and influential-month check help us assess how stable the reported associations are. We did not introduce new polynomial terms, interactions, or automated stepwise selection because the existing comparisons do not provide a clear economic reason to do so. If we change the specification later, we will repeat the diagnostic checks on that model.
+
+## Conclusion and limitations
+
+The analysis indicates that global financial conditions, particularly S&P 500 returns, are associated with BTC monthly log returns in the sample. The expanded model explains slightly more variation, but the Philippine variables provide limited additional evidence once the global indicators are included. Both results are useful for the research question, even though much of Bitcoin's monthly movement remains unexplained.
+
+The findings are **conditional associations**, not causal effects. The 96-month sample includes unusually volatile periods, and contemporaneous relationships may reflect other omitted factors or simultaneous market movements. Philippine M3 is measured as year-on-year growth, which differs from the monthly return window. These limitations should be considered when interpreting both statistically significant and non-significant estimates.
+
