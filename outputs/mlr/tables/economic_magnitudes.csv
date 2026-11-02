@@ -1,0 +1,9 @@
+"Predictor","Illustrative_change","Delta","BTC_Log_Return_Change_PP"
+"SP500","S&P 500 monthly log return +1 percentage point",0.01,1.72
+"USD_Index","Broad USD index log return +1 percentage point",0.01,1.52
+"US_10Y_Yield","U.S. 10Y yield change +0.25 percentage points",0.25,0.83
+"VIX","VIX level +5 index points",5,0.73
+"WTI","WTI monthly log return +10 percentage points",0.1,0.33
+"Philippine_M3_growth","Philippine M3 YoY growth +1 percentage point",1,-0.45
+"BSP_RRP_Rate","BSP RRP rate change +0.25 percentage points",0.25,-2.91
+"USD_PHP","USD/PHP monthly log change +1 percentage point",0.01,-1.4

@@ -1,0 +1,5 @@
+"Test","Statistic","p_value","Interpretation_at_5pct"
+"Koenker-Breusch-Pagan (heteroskedasticity)",5.2846,0.7268,"Do not reject null"
+"Breusch-Godfrey LM (serial correlation through lag 3)",0.9216,0.8202,"Do not reject null"
+"Shapiro-Wilk (residual normality)",0.9905,0.7268,"Do not reject null"
+"Ramsey RESET (quadratic fitted-value augmentation)",0.2966,0.5875,"Do not reject null"

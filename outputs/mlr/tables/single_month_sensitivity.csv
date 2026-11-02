@@ -1,0 +1,10 @@
+"Predictor","Full_96_months","Omit_highest_Cook_month"
+"(Intercept)",0.013,-0.0394
+"SP500",1.7166,1.742
+"USD_Index",1.5191,1.8759
+"US_10Y_Yield",0.0331,0.0184
+"VIX",0.0015,0.004
+"WTI",0.0325,-0.0951
+"Philippine_M3_growth",-0.0045,-0.0039
+"BSP_RRP_Rate",-0.1164,-0.1394
+"USD_PHP",-1.4007,-1.3326

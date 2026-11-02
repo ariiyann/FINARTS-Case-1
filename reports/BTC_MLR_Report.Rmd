@@ -1,0 +1,521 @@
+---
+title: "Case 1 (Bitcoin): Multiple Linear Regression and Diagnostics Analysis"
+author: "Arianne Yari A. Artus"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    df_print: default
+    code_folding: show
+knit: |
+  (function(input, ...) {
+    out_dir <- file.path(
+      dirname(normalizePath(input, winslash = "/", mustWork = TRUE)),
+      "..", "outputs", "mlr"
+    )
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+    rmarkdown::render(
+      input,
+      output_dir = out_dir,
+      envir = new.env(parent = globalenv())
+    )
+  })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8.5, fig.height = 5,
+                      fig.align = "center", dpi = 120)
+needed <- c("knitr", "rmarkdown", "ggplot2", "lmtest", "sandwich", "car")
+missing_packages <- needed[!vapply(needed, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing_packages)) {
+  stop("Install required packages first: install.packages(c(",
+       paste(sprintf("'%s'", missing_packages), collapse = ", "), "))")
+}
+find_project_root <- function(start = getwd(), max_up = 5) {
+  d <- normalizePath(start, winslash = "/", mustWork = TRUE)
+  for (i in 0:max_up) {
+    if (file.exists(file.path(d, "data", "processed", "BTC_regression_ready.csv"))) return(d)
+    parent <- dirname(d)
+    if (parent == d) break
+    d <- parent
+  }
+  stop("Cannot find project root containing data/processed/BTC_regression_ready.csv.",
+       " Open the .Rproj and knit a report inside reports/.", call. = FALSE)
+}
+
+PROJ_ROOT <- find_project_root()
+MLR_OUT_DIR <- file.path(PROJ_ROOT, "outputs", "mlr")
+MLR_TABLE_DIR <- file.path(MLR_OUT_DIR, "tables")
+MLR_FIG_DIR <- file.path(MLR_OUT_DIR, "figures")
+dir.create(MLR_TABLE_DIR, recursive = TRUE, showWarnings = FALSE)
+dir.create(MLR_FIG_DIR, recursive = TRUE, showWarnings = FALSE)
+
+input_file <- file.path(PROJ_ROOT, "data", "processed", "BTC_regression_ready.csv")
+if (!file.exists(input_file)) stop("Missing input: ", input_file,
+                                   ". Knit BTC_MLR_Report.Rmd from reports/ in the project.")
+btc <- utils::read.csv(input_file, stringsAsFactors = FALSE)
+btc$date <- as.Date(btc$date)
+global_vars <- c("SP500", "USD_Index", "US_10Y_Yield", "VIX", "WTI")
+domestic_vars <- c("Philippine_M3_growth", "BSP_RRP_Rate", "USD_PHP")
+full_vars <- c(global_vars, domestic_vars)
+required_cols <- c("date", "BTC_Return", full_vars)
+if (!all(required_cols %in% names(btc))) {
+  stop("Missing columns: ", paste(setdiff(required_cols, names(btc)), collapse = ", "))
+}
+if (anyNA(btc[required_cols])) stop("Missing values detected; establish a shared complete-case sample before comparing models.")
+if (any(!vapply(btc[c("BTC_Return", full_vars)], is.numeric, logical(1)))) stop("At least one regression variable is not numeric.")
+if (anyDuplicated(btc$date)) stop("Duplicate months found.")
+if (anyNA(btc$date)) stop("Unparseable date found.")
+btc <- btc[order(btc$date), , drop = FALSE]
+stopifnot(nrow(btc) > length(full_vars) + 10)
+
+# Heteroskedasticity-and-autocorrelation-consistent SE, Bartlett weights, 3 lags.
+# No automatic prewhitening; small-sample degrees-of-freedom adjustment.
+hac_vcov <- function(model) sandwich::NeweyWest(model, lag = 3, prewhite = FALSE,
+                                                adjust = TRUE)
+hc3_vcov <- function(model) sandwich::vcovHC(model, type = "HC3")
+format_p <- function(p) ifelse(is.na(p), "NA", ifelse(p < 0.001, "<0.001", sprintf("%.3f", p)))
+coef_table <- function(model) {
+  s <- summary(model)$coefficients
+  ci <- stats::confint(model, level = 0.95)
+  data.frame(
+    Predictor = rownames(s),
+    Estimate = round(s[, "Estimate"], 4),
+    OLS_SE = round(s[, "Std. Error"], 4),
+    t_statistic = round(s[, "t value"], 3),
+    p_value = format_p(s[, "Pr(>|t|)"]),
+    CI95_lower = round(ci[, 1], 4),
+    CI95_upper = round(ci[, 2], 4),
+    row.names = NULL, check.names = FALSE
+  )
+}
+robust_coef_table <- function(model) {
+  ordinary <- summary(model)$coefficients
+  hc3 <- lmtest::coeftest(model, vcov. = hc3_vcov(model))
+  hac <- lmtest::coeftest(model, vcov. = hac_vcov(model))
+  data.frame(
+    Predictor = rownames(ordinary),
+    Estimate = round(ordinary[, "Estimate"], 4),
+    OLS_SE = round(ordinary[, "Std. Error"], 4),
+    OLS_p = format_p(ordinary[, "Pr(>|t|)"]),
+    HC3_SE = round(hc3[, "Std. Error"], 4),
+    HC3_p = format_p(hc3[, "Pr(>|t|)"]),
+    HAC3_SE = round(hac[, "Std. Error"], 4),
+    HAC3_p = format_p(hac[, "Pr(>|t|)"]),
+    row.names = NULL, check.names = FALSE
+  )
+}
+fit_table <- function(model, name) {
+  f <- summary(model)$fstatistic
+  data.frame(Model = name, N = stats::nobs(model),
+             R2 = round(summary(model)$r.squared, 3),
+             Adjusted_R2 = round(summary(model)$adj.r.squared, 3),
+             Residual_SE = round(summary(model)$sigma, 4),
+             F_statistic = round(unname(f[1]), 3),
+             F_p = format_p(stats::pf(f[1], f[2], f[3], lower.tail = FALSE)),
+             AIC = round(stats::AIC(model), 2),
+             BIC = round(stats::BIC(model), 2))
+}
+```
+
+# Research question and approach
+
+**Research question.** How are global financial conditions and Philippine monetary and exchange-rate indicators associated with Bitcoin's monthly log returns from January 2018 to December 2025?
+
+We use `r nrow(btc)` monthly observations (`r format(min(btc$date), '%b %Y')` to `r format(max(btc$date), '%b %Y')`), with no missing values in the regression variables. The analysis focuses on **contemporaneous associations** estimated through multiple linear regression (MLR). It does not establish causality or assess out-of-sample forecasting performance. Because the observations are monthly, we also check whether regression errors are correlated over time.
+
+| Dataset code | Definition / units |
+|:--|:--|
+| `BTC_Return` | Bitcoin monthly log return (decimal) |
+| `SP500` | S&P 500 monthly log return (decimal) |
+| `USD_Index` | **FRED DTWEXBGS nominal broad U.S. dollar index** monthly log return (decimal; **not DXY**) |
+| `US_10Y_Yield` | Month-end U.S. 10-year yield change (percentage points) |
+| `VIX` | Monthly average VIX level (index points) |
+| `WTI` | WTI crude oil monthly log return (decimal) |
+| `Philippine_M3_growth` | BSP M3 **year-on-year** growth rate (percent; 1 unit = 1 percentage point), pending master-dictionary confirmation |
+| `BSP_RRP_Rate` | Month-end BSP RRP target rate change (percentage points) |
+| `USD_PHP` | USD/PHP monthly log change (decimal; positive = peso depreciation) |
+
+We first estimate a **global baseline** with S&P 500 returns, broad U.S. dollar index returns, U.S. 10-year yield changes, VIX, and WTI returns. The **expanded model** adds Philippine M3 growth, BSP RRP rate changes, and USD/PHP changes. This comparison helps us assess whether domestic indicators add explanatory value beyond global market conditions. The specifications reflect the research question rather than selection based only on p-values.
+
+# Multiple linear regression results
+
+## Model specifications
+
+The global baseline is:
+
+\[
+BTC\_Return_t = \beta_0 + \beta_1 SP500_t + \beta_2 USD\_Index_t
++ \beta_3 US\_10Y\_Yield_t + \beta_4 VIX_t + \beta_5 WTI_t + \varepsilon_t.
+\]
+
+The expanded model also includes the three Philippine indicators:
+
+\[
+\begin{aligned}
+BTC\_Return_t &= \beta_0 + \beta_1 SP500_t + \beta_2 USD\_Index_t
++ \beta_3 US\_10Y\_Yield_t + \beta_4 VIX_t + \beta_5 WTI_t\\
+&\quad + \beta_6 Philippine\_M3\_growth_t
++ \beta_7 BSP\_RRP\_Rate_t + \beta_8 USD\_PHP_t + \varepsilon_t.
+\end{aligned}
+\]
+
+In both equations, each slope measures an association with BTC returns **holding the other included variables constant**.
+
+## Model estimation
+
+We estimated both specifications by ordinary least squares using `lm()`. The regression summaries below report the coefficients, standard errors, individual tests, and overall model fit.
+
+```{r estimate-ols-models}
+formula_global <- BTC_Return ~ SP500 + USD_Index + US_10Y_Yield + VIX + WTI
+formula_full <- BTC_Return ~ SP500 + USD_Index + US_10Y_Yield + VIX + WTI +
+  Philippine_M3_growth + BSP_RRP_Rate + USD_PHP
+
+model_global <- lm(formula_global, data = btc)
+model_full <- lm(formula_full, data = btc)
+
+summary(model_global)
+summary(model_full)
+```
+
+The coefficient estimates represent conditional associations, so their signs and magnitudes should be considered together with their uncertainty.
+
+## Coefficient estimates and statistical significance
+
+We test whether each coefficient differs from zero, using two-sided t-tests ($H_0: \beta_j=0$). The 95% confidence intervals provide additional context on the range of plausible coefficient values.
+
+```{r model-coefficient-tables}
+coef_global <- coef_table(model_global)
+coef_full <- coef_table(model_full)
+knitr::kable(coef_global, caption = "Global baseline: conventional OLS estimates and inference")
+knitr::kable(coef_full, caption = "Expanded model: conventional OLS estimates and inference")
+utils::write.csv(coef_global,
+                 file.path(MLR_TABLE_DIR, "baseline_coefficients.csv"), row.names = FALSE)
+utils::write.csv(coef_full,
+                 file.path(MLR_TABLE_DIR, "expanded_coefficients.csv"), row.names = FALSE)
+```
+
+In the expanded model, the estimated S&P 500 coefficient is `r sprintf("%.3f", unname(coef(model_full)["SP500"]))` (OLS p-value: `r format_p(summary(model_full)$coefficients["SP500", "Pr(>|t|)"])`). Holding the other predictors constant, a one-percentage-point increase in the S&P 500 monthly log return is associated with an approximately `r sprintf("%.2f", unname(coef(model_full)["SP500"]))`-percentage-point increase in BTC monthly log return.
+
+We also consider the estimates and confidence intervals for the other indicators. A non-significant p-value does not establish that an association is exactly zero.
+
+```{r confidence-intervals}
+# Show the expanded model's 95% OLS confidence intervals.
+expanded_intervals <- data.frame(
+  Predictor = rownames(stats::confint(model_full)),
+  stats::confint(model_full, level = 0.95),
+  row.names = NULL, check.names = FALSE
+)
+colnames(expanded_intervals)[2:3] <- c("Lower_95pct", "Upper_95pct")
+knitr::kable(expanded_intervals, digits = 4,
+             caption = "95% conventional OLS confidence intervals: expanded model")
+utils::write.csv(expanded_intervals,
+                 file.path(MLR_TABLE_DIR, "expanded_confidence_intervals.csv"),
+                 row.names = FALSE)
+```
+
+## Economic significance: one-standard-deviation changes
+
+To compare predictors measured in different units, we estimated the change in fitted BTC returns associated with a one-standard-deviation increase in each predictor, holding the other variables constant. We use standard deviations from the same regression sample.
+
+\[
+\Delta\widehat{BTC\_Return}_{j} = \widehat{\beta}_j \times SD(X_j).
+\]
+
+The table reports fitted BTC log-return changes in both decimal form and percentage points. This comparison describes model-implied magnitudes, not causal effects.
+
+```{r one-sd-economic-effects}
+var_sds <- vapply(btc[full_vars], stats::sd, numeric(1))
+one_sd_effects <- data.frame(
+  Predictor = full_vars,
+  Sample_SD = unname(var_sds[full_vars]),
+  Estimated_coefficient = unname(stats::coef(model_full)[full_vars]),
+  Effect_BTC_log_return_decimal = unname(var_sds[full_vars] * stats::coef(model_full)[full_vars]),
+  Effect_BTC_log_return_percentage_points = unname(100 * var_sds[full_vars] * stats::coef(model_full)[full_vars]),
+  row.names = NULL
+)
+knitr::kable(one_sd_effects, digits = 4,
+             caption = "One-standard-deviation economic effects: expanded OLS model")
+utils::write.csv(one_sd_effects,
+                 file.path(MLR_TABLE_DIR, "one_sd_economic_effects.csv"),
+                 row.names = FALSE)
+```
+
+The one-standard-deviation results help us see which estimated relationships are relatively large in the sample. We still interpret these magnitudes alongside the coefficient uncertainty, particularly for predictors with weak statistical evidence.
+
+## Economic significance: illustrative changes
+
+We also calculated fitted BTC-return changes for practical movements in each indicator, such as a one-percentage-point S&P 500 return increase or a five-point VIX increase. These examples make the coefficient units easier to interpret.
+
+```{r economic-magnitude-table}
+examples <- data.frame(
+  Predictor = full_vars,
+  Illustrative_change = c(
+    "S&P 500 monthly log return +1 percentage point",
+    "Broad USD index log return +1 percentage point",
+    "U.S. 10Y yield change +0.25 percentage points",
+    "VIX level +5 index points",
+    "WTI monthly log return +10 percentage points",
+    "Philippine M3 YoY growth +1 percentage point",
+    "BSP RRP rate change +0.25 percentage points",
+    "USD/PHP monthly log change +1 percentage point"
+  ),
+  Delta = c(0.01, 0.01, 0.25, 5, 0.10, 1, 0.25, 0.01),
+  stringsAsFactors = FALSE
+)
+examples$BTC_Log_Return_Change_PP <- round(
+  100 * unname(stats::coef(model_full)[examples$Predictor]) * examples$Delta, 2
+)
+knitr::kable(
+  examples[c("Illustrative_change", "BTC_Log_Return_Change_PP")],
+  col.names = c("Illustrative predictor change", "Fitted BTC log-return change (percentage points)"),
+  caption = "Illustrative economic magnitudes, expanded OLS model"
+)
+utils::write.csv(examples, file.path(MLR_TABLE_DIR, "economic_magnitudes.csv"), row.names = FALSE)
+```
+
+These are fitted changes with other included variables held constant, not forecasts. Note that M3 growth and interest-rate changes are measured in percentage points, while log returns are stored as decimals.
+
+## Model fit and overall significance
+
+```{r model-fit-table}
+models_summary <- rbind(
+  fit_table(model_global, "Global baseline (5 regressors)"),
+  fit_table(model_full, "Expanded (8 regressors)")
+)
+knitr::kable(models_summary, caption = "OLS model performance using the same sample")
+utils::write.csv(models_summary,
+                 file.path(MLR_TABLE_DIR, "model_fit_comparison.csv"),
+                 row.names = FALSE)
+```
+
+The global baseline explains `r sprintf("%.1f", 100 * summary(model_global)$r.squared)`% of variation in BTC monthly log returns, compared with `r sprintf("%.1f", 100 * summary(model_full)$r.squared)`% for the expanded model. Adjusted R² is `r sprintf("%.3f", summary(model_global)$adj.r.squared)` for the baseline and `r sprintf("%.3f", summary(model_full)$adj.r.squared)` for the expanded model. The overall F-tests assess whether the regressors are jointly associated with BTC returns.
+
+## Additional contribution of Philippine variables
+
+We compared the nested models using a partial F-test of whether the three Philippine coefficients are jointly zero, after accounting for the global indicators:
+
+\[
+H_0:\quad \beta_{M3}=\beta_{RRP}=\beta_{USD/PHP}=0.
+\]
+
+```{r domestic-incremental-f-test}
+nested_models <- stats::anova(model_global, model_full)
+knitr::kable(as.data.frame(nested_models), digits = 4,
+             caption = "Partial F-test: global baseline versus expanded model")
+utils::write.csv(as.data.frame(nested_models),
+                 file.path(MLR_TABLE_DIR, "nested_model_test.csv"), row.names = TRUE)
+nested_p <- nested_models[["Pr(>F)"]][2]
+```
+
+The partial F-test gives a p-value of `r format_p(nested_p)`. At the 5% level, the result indicates `r if (nested_p < 0.05) "evidence of an additional joint association from the Philippine variables" else "no statistically significant additional joint association from the Philippine variables"` in this sample.
+
+The baseline has `r if (stats::AIC(model_global) < stats::AIC(model_full)) "a lower" else "a higher"` AIC. The expanded model adds some explanatory power in terms of R², but we also consider adjusted R² and the added complexity. Both models remain relevant: the baseline summarizes global financial associations, while the expanded model directly addresses the Philippine part of the research question.
+
+# Regression diagnostics and robustness
+
+## Residual patterns
+
+We examined residuals from the expanded model using residual-versus-fitted, normal Q-Q, and scale-location plots. These plots help identify curvature, uneven residual spread, and unusual observations that could affect inference.
+
+```{r residual-plots, fig.height=5.5, fig.width=10}
+diag_df <- data.frame(
+  date = btc$date, fitted = stats::fitted(model_full),
+  residual = stats::residuals(model_full),
+  standardized = stats::rstandard(model_full)
+)
+p_fit <- ggplot2::ggplot(diag_df, ggplot2::aes(x = fitted, y = residual)) +
+  ggplot2::geom_point(alpha = .70) +
+  ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#3B5FA7") +
+  ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
+  ggplot2::labs(title = "Residuals versus fitted values", x = "Fitted BTC log return", y = "Residual") +
+  ggplot2::theme_minimal()
+p_qq <- ggplot2::ggplot(diag_df, ggplot2::aes(sample = standardized)) +
+  ggplot2::stat_qq(alpha = .7) + ggplot2::stat_qq_line(color = "#3B5FA7") +
+  ggplot2::labs(title = "Normal Q-Q plot of standardized residuals", x = "Theoretical quantiles", y = "Sample quantiles") +
+  ggplot2::theme_minimal()
+p_scale <- ggplot2::ggplot(diag_df,
+  ggplot2::aes(x = fitted, y = sqrt(abs(standardized)))) +
+  ggplot2::geom_point(alpha = .7) +
+  ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#3B5FA7") +
+  ggplot2::labs(title = "Scale-location plot",
+                x = "Fitted BTC log return",
+                y = "Square root of absolute standardized residual") +
+  ggplot2::theme_minimal()
+print(p_fit)
+print(p_qq)
+print(p_scale)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "residuals_vs_fitted.png"), p_fit, width = 8, height = 5)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "residuals_qq.png"), p_qq, width = 8, height = 5)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "scale_location.png"), p_scale, width = 8, height = 5)
+```
+
+The residual-versus-fitted plot provides a visual check for nonlinearity or changing variance. The Q-Q plot shows how closely the residual distribution follows a normal reference, especially at the tails. The scale-location plot highlights possible changes in residual spread across fitted values. We assess these observations together with the formal tests below.
+
+## Formal diagnostic tests
+
+```{r formal-tests}
+bp_test <- lmtest::bptest(model_full, studentize = TRUE)  # Koenker studentized BP
+bg_test <- lmtest::bgtest(model_full, order = 3, type = "Chisq")
+dw_stat <- sum(diff(stats::residuals(model_full))^2) /
+           sum(stats::residuals(model_full)^2)
+shapiro_test <- stats::shapiro.test(stats::residuals(model_full))
+reset_test <- lmtest::resettest(model_full, power = 2, type = "fitted")
+formal_diag <- data.frame(
+  Test = c("Koenker-Breusch-Pagan (heteroskedasticity)",
+           "Breusch-Godfrey LM (serial correlation through lag 3)",
+           "Shapiro-Wilk (residual normality)",
+           "Ramsey RESET (quadratic fitted-value augmentation)"),
+  Statistic = round(c(unname(bp_test$statistic), unname(bg_test$statistic),
+                      unname(shapiro_test$statistic), unname(reset_test$statistic)), 4),
+  p_value = c(bp_test$p.value, bg_test$p.value, shapiro_test$p.value,
+              reset_test$p.value)
+)
+formal_diag$Interpretation_at_5pct <- ifelse(formal_diag$p_value < 0.05,
+                                           "Reject null", "Do not reject null")
+formal_diag$p_value <- round(formal_diag$p_value, 4)
+knitr::kable(formal_diag, caption = "Expanded-model residual diagnostics")
+knitr::kable(data.frame(Statistic = "Durbin-Watson", Value = round(dw_stat, 3)),
+             caption = "Durbin-Watson descriptive statistic (approximately 2 indicates little first-order residual correlation)")
+utils::write.csv(formal_diag, file.path(MLR_TABLE_DIR, "diagnostic_tests.csv"), row.names = FALSE)
+```
+
+The four tests examine different aspects of the fitted model: heteroskedasticity (Breusch-Pagan), serial correlation through three lags (Breusch-Godfrey), residual normality (Shapiro-Wilk), and an additional fitted-value pattern (Ramsey RESET). We treat p-values above 0.05 as **insufficient evidence to reject the corresponding null**, not proof that the assumption always holds.
+
+For the expanded model, the p-values are BP = `r format_p(bp_test$p.value)`, BG(3) = `r format_p(bg_test$p.value)`, Shapiro-Wilk = `r format_p(shapiro_test$p.value)`, and RESET = `r format_p(reset_test$p.value)`. The available tests `r if (all(c(bp_test$p.value, bg_test$p.value, shapiro_test$p.value, reset_test$p.value) >= 0.05)) "do not indicate a statistically significant problem at the 5% level" else "identify at least one result below the 5% threshold"`. These results do not rule out omitted variables or other sources of bias.
+
+We also ran the main diagnostic tests on the global baseline, since it remains a comparison model.
+
+```{r baseline-diagnostic-crosscheck}
+global_diagnostics <- data.frame(
+  Model = c("Global baseline", "Expanded model"),
+  BP_p = c(lmtest::bptest(model_global, studentize = TRUE)$p.value, bp_test$p.value),
+  BG3_p = c(lmtest::bgtest(model_global, order = 3, type = "Chisq")$p.value, bg_test$p.value),
+  Shapiro_p = c(stats::shapiro.test(stats::residuals(model_global))$p.value, shapiro_test$p.value),
+  RESET_p = c(lmtest::resettest(model_global, power = 2, type = "fitted")$p.value, reset_test$p.value)
+)
+knitr::kable(global_diagnostics, digits = 4,
+             caption = "Cross-check of main residual tests on both candidate models")
+utils::write.csv(global_diagnostics, file.path(MLR_TABLE_DIR, "both_model_diagnostics.csv"), row.names = FALSE)
+```
+
+### Multicollinearity
+
+```{r vif-analysis}
+vif_values <- car::vif(model_full)
+vif_table <- data.frame(Predictor = names(vif_values), VIF = round(as.numeric(vif_values), 3))
+knitr::kable(vif_table, caption = "Variance inflation factors for eight predictors")
+utils::write.csv(vif_table, file.path(MLR_TABLE_DIR, "vif.csv"), row.names = FALSE)
+```
+
+The maximum VIF is `r sprintf('%.2f', max(vif_values))` for `r names(which.max(vif_values))`. This `r ifelse(max(vif_values) < 5, 'does not indicate serious predictor collinearity using a VIF threshold of 5', 'suggests that some predictor collinearity needs closer examination')`. The VIF results are a screening check and are not used on their own to remove variables.
+
+### Influential observations
+
+```{r influence-analysis}
+influence <- data.frame(
+  date = format(btc$date, "%Y-%m"),
+  cooks_d = stats::cooks.distance(model_full),
+  leverage = stats::hatvalues(model_full),
+  studentized_residual = stats::rstudent(model_full)
+)
+cook_cutoff <- 4 / nrow(btc)
+influential <- influence[influence$cooks_d > cook_cutoff, , drop = FALSE]
+influential <- influential[order(-influential$cooks_d), , drop = FALSE]
+knitr::kable(head(influential, 10), digits = 3,
+             caption = paste0("Cook's distance screen: observations above 4/n = ", round(cook_cutoff, 3)))
+utils::write.csv(influence, file.path(MLR_TABLE_DIR, "influence_all_months.csv"), row.names = FALSE)
+utils::write.csv(influential, file.path(MLR_TABLE_DIR, "influential_months.csv"), row.names = FALSE)
+```
+
+```{r influence-plot}
+p_cook <- ggplot2::ggplot(influence,
+                          ggplot2::aes(x = as.Date(paste0(date, "-01")), y = cooks_d)) +
+  ggplot2::geom_col(fill = "#5579AD") +
+  ggplot2::geom_hline(yintercept = cook_cutoff, linetype = "dashed", color = "#A54D59") +
+  ggplot2::labs(title = "Cook's distance by month (expanded OLS model)",
+                x = "Observation month", y = "Cook's distance") +
+  ggplot2::theme_minimal()
+print(p_cook)
+ggplot2::ggsave(file.path(MLR_FIG_DIR, "cooks_distance.png"), p_cook, width = 8.5, height = 4.8)
+```
+
+`r nrow(influential)` months exceed the Cook's distance screening value of **4/n**. The highest value occurs in `r influence$date[which.max(influence$cooks_d)]` (`r sprintf('%.3f', max(influence$cooks_d))`). We retained these observations in the main regression because unusually large market movements can be genuine events. Their possible influence is examined separately below.
+
+## HC3 robust standard errors
+
+We also estimated heteroskedasticity-robust (HC3) standard errors. This leaves the OLS coefficients unchanged but gives an alternative assessment of their statistical uncertainty.
+
+```{r hc3-inference}
+lmtest::coeftest(model_full, vcov. = sandwich::vcovHC(model_full, type = "HC3"))
+```
+
+```{r robustness-se}
+robust_table <- robust_coef_table(model_full)
+knitr::kable(robust_table,
+             caption = "Expanded model: conventional OLS, HC3, and supplementary HAC(3) inference")
+utils::write.csv(robust_table, file.path(MLR_TABLE_DIR, "robust_coefficients.csv"),
+                 row.names = FALSE)
+```
+
+The HC3 results are reported alongside conventional OLS standard errors. Differences in significance should be considered when interpreting the estimates; robust standard errors do not address possible omitted-variable bias or reverse causality.
+
+## Supplementary check: Newey-West standard errors
+
+Because the observations are monthly, we additionally calculated Newey-West HAC standard errors allowing heteroskedasticity and short-run error correlation. We used three lags as a sensitivity setting. This is an inference check; the underlying model remains OLS MLR.
+
+```{r hac-inference}
+lmtest::coeftest(model_full, vcov. = hac_vcov(model_full))
+```
+
+We also checked the three Philippine coefficients jointly using the HAC covariance estimate.
+
+```{r robust-domestic-test}
+hac_joint <- car::linearHypothesis(
+  model_full,
+  c("Philippine_M3_growth = 0", "BSP_RRP_Rate = 0", "USD_PHP = 0"),
+  vcov. = hac_vcov(model_full), test = "F")
+knitr::kable(as.data.frame(hac_joint), digits = 4,
+             caption = "Supplementary HAC(3) Wald F-test for the Philippine indicators")
+hac_domestic_p <- hac_joint[["Pr(>F)"]][2]
+```
+
+The supplementary HAC joint-test p-value is `r format_p(hac_domestic_p)`. We compare this with the conventional partial F-test without using either test alone to determine the final model.
+
+## Sensitivity to an influential month
+
+To assess whether one observation is driving the results, we re-estimated the expanded model after temporarily excluding the month with the highest Cook's distance. The original 96-month model remains our main estimate.
+
+```{r single-influence-sensitivity}
+worst_idx <- which.max(influence$cooks_d)
+worst_month <- influence$date[worst_idx]
+sensitivity_data <- btc[-worst_idx, , drop = FALSE]
+model_omit_one <- stats::lm(formula_full, data = sensitivity_data)
+sensitivity_coef <- data.frame(
+  Predictor = names(stats::coef(model_full)),
+  Full_96_months = round(unname(stats::coef(model_full)), 4),
+  Omit_highest_Cook_month = round(unname(stats::coef(model_omit_one)), 4)
+)
+knitr::kable(sensitivity_coef,
+             caption = paste0("Influence sensitivity: all months versus omitting ", worst_month, " only for a check"))
+utils::write.csv(sensitivity_coef, file.path(MLR_TABLE_DIR, "single_month_sensitivity.csv"), row.names = FALSE)
+```
+
+The S&P 500 coefficient changes from `r sprintf('%.3f', coef(model_full)['SP500'])` to `r sprintf('%.3f', coef(model_omit_one)['SP500'])` when `r worst_month` is excluded. Its estimated sign `r ifelse(sign(coef(model_full)['SP500']) == sign(coef(model_omit_one)['SP500']), 'remains the same', 'changes')`. This helps us assess how sensitive the result is to a single unusual month; it does not justify removing that observation from the main analysis.
+
+# Model choice and overall findings
+
+We retained both specifications for interpretation. The **global baseline** offers the simpler comparison, while the **expanded model** shows whether Philippine monetary and exchange-rate indicators contribute beyond the five global variables. The partial F-test p-value is `r format_p(nested_p)`, and the expanded model has R² = `r sprintf('%.3f', summary(model_full)$r.squared)` and adjusted R² = `r sprintf('%.3f', summary(model_full)$adj.r.squared)`. Given the modest overall explanatory power, we avoid treating either model as a reliable BTC forecasting tool.
+
+The diagnostic tests, VIF results, robust standard errors, and influential-month check help us assess how stable the reported associations are. We did not introduce new polynomial terms, interactions, or automated stepwise selection because the existing comparisons do not provide a clear economic reason to do so. If we change the specification later, we will repeat the diagnostic checks on that model.
+
+# Conclusion and limitations
+
+The analysis indicates that global financial conditions, particularly S&P 500 returns, are associated with BTC monthly log returns in the sample. The expanded model explains slightly more variation, but the Philippine variables provide limited additional evidence once the global indicators are included. Both results are useful for the research question, even though much of Bitcoin's monthly movement remains unexplained.
+
+The findings are **conditional associations**, not causal effects. The 96-month sample includes unusually volatile periods, and contemporaneous relationships may reflect other omitted factors or simultaneous market movements. Philippine M3 is measured as year-on-year growth, which differs from the monthly return window. These limitations should be considered when interpreting both statistically significant and non-significant estimates.
+
+**Data notes.** All models use `data/processed/BTC_regression_ready.csv`; the data cleaning and EDA files have not been modified. Before submission, confirm the M3 transformation against the master metadata dictionary. The USD index is FRED DTWEXBGS, a broad U.S. dollar index, **not DXY**.

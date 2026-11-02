@@ -1,0 +1,3 @@
+"Model","N","R2","Adjusted_R2","Residual_SE","F_statistic","F_p","AIC","BIC"
+"Global baseline (5 regressors)",96,0.156,0.109,0.1808,3.332,"0.008",-48.13,-30.18
+"Expanded (8 regressors)",96,0.187,0.112,0.1805,2.498,"0.017",-45.68,-20.04
