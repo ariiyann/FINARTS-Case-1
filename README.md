@@ -103,9 +103,9 @@ install.packages(c(
 
 ## 5\. Run the project
 
-Knit `BTC\\\_Master\\\_Report.Rmd`.
+Knit `BTC_Master_Report.Rmd`.
 
-**Main result:** `outputs/master/BTC\_Master\_Report.html`. The compiled EDA and MLR code also writes its detailed figures/tables into `outputs/eda/` and `outputs/mlr/`.
+**Main result:** `outputs/master/BTC_Master_Report.html`. The compiled EDA and MLR code also writes its detailed figures/tables into `outputs/eda/` and `outputs/mlr/`.
 
 ### 
 
