@@ -2,7 +2,7 @@
 title: "Case 1 (Bitcoin): Exploratory Data Analysis"
 author: "Chino Louis Lorenzo S. Meneses"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
-lan: en
+lang: en
 output:
   html_document:
     toc: true
@@ -10,14 +10,14 @@ output:
     number_sections: true
     df_print: paged
     code_folding: show
-# The Knit button saves the HTML report in "02 - Outputs" 
-
-knit: (function(input, ...) {
-    rmarkdown::render(
-      input,
-      output_dir = file.path(dirname(input), "02 - Outputs"),
-      envir = globalenv()
-    )
+# Clicking Knit saves BTC_EDA.html to outputs/eda/
+knit: |
+  (function(input, ...) {
+    input <- normalizePath(input, winslash = "/", mustWork = TRUE)
+    project_root <- dirname(dirname(input))
+    target <- file.path(project_root, "outputs", "eda")
+    dir.create(target, recursive = TRUE, showWarnings = FALSE)
+    rmarkdown::render(input, output_dir = target, envir = new.env(parent = globalenv()))
   })
 ---
 
@@ -46,50 +46,57 @@ library(ggrepel)              # non-overlapping point labels
 theme_set(theme_minimal(base_size = 11))
 set.seed(123)
 
-# ---- Project folders ---------------------------------------------------------------------
-# Expected layout (this Rmd sits in the project folder):
-#   CASE 1 - Bitcoin (BTC) - EDA/
-#     BTC_EDA.Rmd
-#     01 - Data/      the four CSV files
-#     02 - Outputs/   created automatically: knitted report, figures/ and tables/
-DATA_FOLDER   <- "01 - Data"
-OUTPUT_FOLDER <- "02 - Outputs"
-
-# The project root is the folder that contains the data folder. The search starts in the
-# folder of this Rmd and also checks up to three parent folders.
-find_project_root <- function(start = getwd(), marker = DATA_FOLDER, max_up = 3) {
-  d <- normalizePath(start, winslash = "/", mustWork = FALSE)
+# ---- Project paths ----------------------------------------------------------
+# Repository layout:
+#   FINARTS-Case-1/
+#     data/raw/                     Source CSV files (including BSP rate)
+#     data/processed/               Shared BTC_regression_ready.csv, audit levels
+#     reports/BTC_EDA.Rmd           This file
+#     outputs/eda/figures/          Generated figure PNGs
+#     outputs/eda/tables/           Generated CSV tables
+#
+# RStudio usually knits with the reports/ directory as the working directory,
+# while source() and rmarkdown::render() may be run from the repository root.
+# Search upward so BOTH entry points find the same data and output locations.
+find_project_root <- function(start = getwd(), max_up = 8L) {
+  current <- normalizePath(start, winslash = "/", mustWork = TRUE)
   for (i in 0:max_up) {
-    if (dir.exists(file.path(d, marker))) return(d)
-    parent <- dirname(d)
-    if (parent == d) break
-    d <- parent
+    if (dir.exists(file.path(current, "data", "processed")) &&
+        dir.exists(file.path(current, "data", "raw")) &&
+        file.exists(file.path(current, "README.md"))) return(current)
+    parent <- dirname(current)
+    if (parent == current) break
+    current <- parent
   }
-  stop("Cannot find the folder '", marker, "' starting from ", start, ". Keep this Rmd in the ",
-       "project folder (the one that contains '", marker, "') and knit again.", call. = FALSE)
+  stop("Project root not found. Open FINARTS-Case-1.Rproj and retry.", call. = FALSE)
 }
 
 PROJ_ROOT <- find_project_root()
-DATA_PATH <- file.path(PROJ_ROOT, DATA_FOLDER)
-OUT_DIR   <- file.path(PROJ_ROOT, OUTPUT_FOLDER)
-FIG_DIR   <- file.path(OUT_DIR, "figures")
+DATA_PATH <- file.path(PROJ_ROOT, "data", "processed")
+RAW_DATA_PATH <- file.path(PROJ_ROOT, "data", "raw")
+OUT_DIR <- file.path(PROJ_ROOT, "outputs", "eda")
+FIG_DIR <- file.path(OUT_DIR, "figures")
 TABLE_DIR <- file.path(OUT_DIR, "tables")
-invisible(lapply(c(FIG_DIR, TABLE_DIR), dir.create, recursive = TRUE, showWarnings = FALSE))
+invisible(lapply(c(OUT_DIR, FIG_DIR, TABLE_DIR),
+                 dir.create, recursive = TRUE, showWarnings = FALSE))
 
-# Every figure is saved as a PNG in 02 - Outputs/figures (file names follow the chunk names)
+# Save all figures as PNG and exported tables as CSV in outputs/eda/.
 knitr::opts_chunk$set(fig.path = paste0(FIG_DIR, "/"), dev = "png", dpi = 120)
 
-find_data <- function(fname) {
-  f <- file.path(DATA_PATH, fname)
+find_data <- function(fname, location = c("processed", "raw")) {
+  location <- match.arg(location)
+  folder <- if (location == "raw") RAW_DATA_PATH else DATA_PATH
+  f <- file.path(folder, fname)
   if (!file.exists(f)) {
-    stop("Cannot find '", fname, "' in ", DATA_PATH, ". Check the file name and that the file ",
-         "is inside '", DATA_FOLDER, "'.", call. = FALSE)
+    stop("Cannot find '", fname, "' in ", folder,
+         ". Run scripts/BTC_Data_Cleaning.R if the processed dataset is missing.",
+         call. = FALSE)
   }
   f
 }
 
 # Report-ready table helper. When `name` is given, the table is also saved as a CSV file
-# in 02 - Outputs/tables/<name>.csv (UTF-8 with BOM so Excel opens it correctly).
+# in outputs/eda/tables/<name>.csv (UTF-8 with BOM so Excel opens it correctly).
 ft <- function(df, digits = 3, name = NULL) {
   if (!is.null(name)) {
     readr::write_excel_csv(as.data.frame(df), file.path(TABLE_DIR, paste0(name, ".csv")))
@@ -414,7 +421,7 @@ p_sizes + p_when
 
 ```{r bsp_context, fig.height=4.5}
 # Context: the RRP LEVEL over time (BSP_RRP_Rate.csv runs beyond the sample period)
-f_bsp <- find_data("BSP_RRP_Rate.csv")
+f_bsp <- find_data("BSP_RRP_Rate.csv", location = "raw")
 bsp <- read_csv(f_bsp, show_col_types = FALSE) %>%
   dplyr::select(date, target_rrp = value, overnight_rrp_monthly = on_rrp_overnight_monthly)
 

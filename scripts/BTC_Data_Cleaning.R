@@ -41,12 +41,12 @@
 #   Philippine_M3_growth / Philippine_M3_level
 #                 BSP "Depository Corporations Survey", row "M3 (M2 + 3.d)":
 #                 published year-on-year % change, and levels (million PHP)
-# Raw files are saved in data_raw/ with source and retrieval date and are
+# Raw files are saved in data/raw/ with source and retrieval date and are
 # NEVER overwritten with transformed values.
 # Retrieval dates: BSP workbooks (Depository Corporations Survey release of
 #   August 2026; interest-rate table last saved 15 Oct 2026) were converted to
 #   CSV on 25 Oct 2026. FRED / Yahoo files: see the retrieved_on column in
-#   data_raw/*.csv (date of the first run of this script).
+#   data/raw/*.csv (date of the first run of this script).
 #
 # 4. VARIABLE SUMMARY
 # ---------------------------------------------------------------------------
@@ -122,7 +122,7 @@
 #   figure for all 97 months Dec 2017 - Dec 2025.
 # * Dec 2017 BSP target RRP rate is present, so Jan 2018 change is defined.
 # Independent re-verification of the delivered outputs (recomputed from
-# output/BTC_monthly_levels.csv): every log return, first difference, the VIX
+# data/processed/BTC_monthly_levels.csv): every log return, first difference, the VIX
 # average and the M3 series match BTC_monthly_cleaned_all.csv (max abs
 # difference 1e-16). Worked examples:
 #   BTC Jan 2018 : ln(10221.10 / 14156.40) = -0.32571 (file: -0.32571)
@@ -133,7 +133,7 @@
 # zero duplicate months; BTC_regression_ready.csv is identical to the cleaned
 # file (no month excluded).
 #
-# 8. OBSERVATION COUNTS (from output/BTC_data_quality_report.csv)
+# 8. OBSERVATION COUNTS (from outputs/data_quality/BTC_data_quality_report.csv)
 # ---------------------------------------------------------------------------
 # Variable        Raw rows  Dup. removed  Missing in source  Rows after cleaning
 # BTC_Return         2985        0               0                2953
@@ -163,14 +163,14 @@
 # Months in study window: 96 (expected 96)   Complete-case months: 96
 # Final sample dates: 2018-01-01 to 2025-12-01 (month keys; Jan 2018 - Dec 2025)
 #
-# 9. MISSING VALUES (from output/BTC_missing_value_report.csv)
+# 9. MISSING VALUES (from outputs/data_quality/BTC_missing_value_report.csv)
 # ---------------------------------------------------------------------------
 # No missing values in the 96-month window for any of the nine variables
 # (0 missing, 0% for BTC_Return, SP500, USD_Index, US_10Y_Yield, VIX,
 # Philippine_M3_growth, BSP_RRP_Rate, USD_PHP and WTI).
 # Why the regression sample can be smaller than 96: a month is excluded from
 # BTC_regression_ready.csv if ANY included variable is NA in that month. Here
-# no month is excluded (output/BTC_excluded_months.csv is empty), so the
+# no month is excluded (outputs/data_quality/BTC_excluded_months.csv is empty), so the
 # regression-ready file has all 96 months. The only observation lost to
 # differencing is Dec 2017, which serves purely as the base for Jan 2018.
 # Extreme but legitimate movements were KEPT (not winsorised or removed):
@@ -180,14 +180,14 @@
 #   USD_PHP    min -0.041 (2024-08), max +0.052 (2022-06)
 #   VIX        range 11.06 - 57.74 (monthly average)
 #
-# 10. OUTPUT FILES (folder output/)
+# 10. OUTPUT FILES (organized project directories)
 # ---------------------------------------------------------------------------
-# BTC_monthly_cleaned_all.csv   96 months, all variables, NAs preserved
-# BTC_regression_ready.csv      complete cases only (after documented exclusions)
-# BTC_missing_value_report.csv  missing count and months per variable
-# BTC_data_quality_report.csv   cleaning log, validation results, units
-# BTC_excluded_months.csv       months dropped from the regression file + reason
-# BTC_monthly_levels.csv        monthly levels before transformation (audit trail)
+# data/processed/BTC_monthly_cleaned_all.csv   96 months, all variables, NAs preserved
+# data/processed/BTC_regression_ready.csv      complete cases only (after documented exclusions)
+# outputs/data_quality/BTC_missing_value_report.csv  missing count and months per variable
+# outputs/data_quality/BTC_data_quality_report.csv   cleaning log, validation results, units
+# outputs/data_quality/BTC_excluded_months.csv       months dropped from the regression file + reason
+# data/processed/BTC_monthly_levels.csv        monthly levels before transformation (audit trail)
 #
 # 11. UNRESOLVED ISSUES / LIMITATIONS
 # ---------------------------------------------------------------------------
@@ -212,10 +212,27 @@ for (p in pkgs) if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
 suppressPackageStartupMessages(invisible(lapply(pkgs, library, character.only = TRUE)))
 
 # ---- CONFIG -----------------------------------------------------------------
-DIR_RAW <- "data_raw"
-DIR_OUT <- "output"
-dir.create(DIR_RAW, showWarnings = FALSE)
-dir.create(DIR_OUT, showWarnings = FALSE)
+# Resolve paths relative to the repository root, whether this script is run
+# from the .Rproj or sourced with the working directory set to scripts/.
+find_project_root <- function(start = getwd(), max_up = 8L) {
+  current <- normalizePath(start, winslash = "/", mustWork = TRUE)
+  for (i in 0:max_up) {
+    if (dir.exists(file.path(current, "data", "raw")) &&
+        dir.exists(file.path(current, "reports")) &&
+        file.exists(file.path(current, "README.md"))) return(current)
+    parent <- dirname(current)
+    if (parent == current) break
+    current <- parent
+  }
+  stop("Project root not found. Open FINARTS-Case-1.Rproj or set the working directory to the repository root.",
+       call. = FALSE)
+}
+PROJECT_ROOT <- find_project_root()
+DIR_RAW <- file.path(PROJECT_ROOT, "data", "raw")
+DIR_PROCESSED <- file.path(PROJECT_ROOT, "data", "processed")
+DIR_QUALITY <- file.path(PROJECT_ROOT, "outputs", "data_quality")
+invisible(lapply(c(DIR_RAW, DIR_PROCESSED, DIR_QUALITY),
+                 dir.create, recursive = TRUE, showWarnings = FALSE))
 
 STUDY_START <- as.Date("2018-01-01")
 STUDY_END   <- as.Date("2025-12-31")
@@ -224,7 +241,7 @@ DL_START    <- "2017-11-01"               # download slightly earlier for safety
 
 # Philippine M3 -- CONFIRM AGAINST THE MASTER METADATA DICTIONARY.
 # The BSP workbook provided contains BOTH M3 levels (million PHP) and BSP's
-# published YEAR-ON-YEAR % change, so both raw files exist in data_raw/:
+# published YEAR-ON-YEAR % change, so both raw files exist in data/raw/:
 #   Philippine_M3_growth.csv : BSP-published YoY % change of M3 (in PERCENT)
 #   Philippine_M3_level.csv  : M3 level, million PHP
 #   "growth_as_provided" -> uses Philippine_M3_growth.csv as-is (YoY, percent)  [CURRENT SETTING]
@@ -446,12 +463,13 @@ excluded <- clean_all %>% select(date, all_of(avail)) %>% filter(!complete.cases
   select(date, missing_vars)
 
 # ---- STEP 11. Export -------------------------------------------------------------
-write_csv(clean_all, file.path(DIR_OUT, "BTC_monthly_cleaned_all.csv"), na = "")
-write_csv(reg,       file.path(DIR_OUT, "BTC_regression_ready.csv"))
-write_csv(miss,      file.path(DIR_OUT, "BTC_missing_value_report.csv"))
-write_csv(dq,        file.path(DIR_OUT, "BTC_data_quality_report.csv"))
-write_csv(excluded,  file.path(DIR_OUT, "BTC_excluded_months.csv"))
-write_csv(levels_wide %>% rename(date = month), file.path(DIR_OUT, "BTC_monthly_levels.csv"), na = "")
+write_csv(clean_all, file.path(DIR_PROCESSED, "BTC_monthly_cleaned_all.csv"), na = "")
+write_csv(reg,       file.path(DIR_PROCESSED, "BTC_regression_ready.csv"))
+write_csv(miss,      file.path(DIR_QUALITY, "BTC_missing_value_report.csv"))
+write_csv(dq,        file.path(DIR_QUALITY, "BTC_data_quality_report.csv"))
+write_csv(excluded,  file.path(DIR_QUALITY, "BTC_excluded_months.csv"))
+write_csv(levels_wide %>% rename(date = month),
+          file.path(DIR_PROCESSED, "BTC_monthly_levels.csv"), na = "")
 
 cat("\n==== SUMMARY ====\n",
     "Months in study window:", n_months, "\n",
